@@ -1,62 +1,112 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+
 module Lib
     where
 
-import Data.List(intercalate, find, lookup)
+import Data.List(intercalate)
+import Control.Monad(sequence, mapM)
 
-data Sort = G | F
-    deriving (Show, Eq)
-data Fun = M | I 
-    deriving (Show, Eq)
+class (Eq s, Show s, Eq f, Show f) => Signature s f | f -> s where
+    dom :: f -> [s]
+    cod :: f -> s
 
-dom :: Fun -> [Sort]
-dom M = [G, G]
-dom I = []
+type Name = String 
 
-cod::Fun -> Sort
-cod _ = G
-
-----------------------------------------------------
-data Term = Var String Sort | FunApp Fun [Term] 
+data Term s f = Var Name s | FunApp f [Term s f] 
     deriving (Eq)
 
-infix 4 :==
-data Formula = Term :== Term
-    deriving (Show, Eq)
-
-instance Show Term where
+instance (Show s, Show f) => Show (Term s f) where
     show (Var v _) = v
     show (FunApp f ts) = show f ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
-----------------------------------------------------
+infix 4 :==
+data Formula s f = Term s f :== Term s f
+    deriving (Eq)
 
-data Axiom = Assoc | El | Er
+instance (Show s, Show f) => Show (Formula s f) where
+    show (t :== t') = show t ++ " = " ++ show t'
 
-axiom :: Axiom -> Formula
-axiom Assoc = FunApp M [FunApp M [Var "x" G, Var "y" G], Var "z" G] :==
-     FunApp M [Var "x" G, FunApp M [Var "y" G, Var "z" G]]
-axiom El = FunApp M [FunApp I [], Var "x" G] :== Var "x" G
-axiom Er = FunApp M [Var "x" G, FunApp I []] :== Var "x" G
 
---------------------------------------------------
-
-typeOf :: Term -> Sort 
+typeOf :: (Signature s f) => Term s f -> s
 typeOf (Var _ s) = s
 typeOf (FunApp f _) = cod f
 
+type Err = String
 
--- rewrite using Either for placement of errors
-typeCheck :: Term -> Bool
-typeCheck (Var _ s) = True
-typeCheck (FunApp f lst) = (foldl (&&) True (map typeCheck lst)) && dom f == map typeOf lst
+typeCheck :: (Signature s f) => Term s f -> Either Err s
+typeCheck (Var _ s) = Right s
+typeCheck x@(FunApp f lst) = do
+    sequence (map typeCheck lst)
+    let types = map typeOf lst
+    if dom f == types
+        then Right $ typeOf x
+        else Left $ "Domain of " ++ show f ++ " is not " ++ show types ++ " in " ++ show lst
 
-typeFormula :: Formula -> Bool
-typeFormula (a :== b)    = typeCheck a && typeCheck b && typeOf a == typeOf b
+typeFormula :: (Signature s f) => Formula s f -> Either Err s
+typeFormula (a :== b) = do 
+    x <- typeCheck a
+    y <- typeCheck b
+    if typeOf a == typeOf b
+        then Right x
+        else Left $ "Type mismatch: " ++ show a ++ " and " ++ show b
 
 
-----------------------------------
--- data Principles = Axiom Formula | Refl Term | Sym Principles | Trans Principles Principles 
---                | Congr Function [Principles] | App Principles String Term
+data Rules a s f = Axiom a | Refl (Term s f) | Sym (Rules a s f) 
+            | Trans (Rules a s f) (Rules a s f)
+            | Cong f [Rules a s f] | App (Rules a s f) Name (Term s f)
 
+class (Signature s f) => Proof a s f | a -> s f where 
+    axiom :: a -> Formula s f
+    proof :: Rules a s f -> Either Err (Formula s f)
+    proof (Axiom f) = Right $ axiom f
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+    proof (Refl term) = do
+        _ <- typeCheck term  
+        Right $ term :== term
+
+    proof (Sym pr) = do 
+        (t1 :== t2) <- proof pr
+        Right $ t2 :== t1
+
+    proof (Trans p1 p2) = do
+        (t1 :== t2) <- proof p1
+        (t2' :== t3) <- proof p2
+        if t2 == t2'
+            then Right $ t1 :== t3
+            else Left ""
+
+    proof (Cong f ps) = do
+        (ts1, ts2) <- buildFunction ps
+        let t1 = FunApp f ts1
+        let t2 = FunApp f ts2
+        _ <- typeCheck t1
+        _ <- typeCheck t2
+        Right $ t1 :== t2
+            where
+                buildFunction [] = Right ([], [])
+                buildFunction  (p : ps) = do
+                    (t1 :== t2) <- proof p
+                    (ts1, ts2) <- buildFunction ps
+                    Right (t1 : ts1, t2 : ts2)
+    
+    proof (App p v t) = do
+        s <- typeCheck t
+        (t1 :== t2) <- proof p
+        nt1 <- changeTerm t1 v s t
+        nt2 <- changeTerm t2 v s t
+        Right $ nt1 :== nt2
+            where
+                changeTerm v@(Var n s) vn vs t'
+                    | n == vn && s == vs = Right t'
+                    | n == vn && s /= vs = Left ""
+                    | otherwise = Right v
+                changeTerm (FunApp n ts) vn vs t' = do
+                    nts <- changeList ts vn vs t'
+                    Right (FunApp n nts)
+
+                changeList [] _ _ _ = Right []
+                changeList (t : ts) vn vs t' = do
+                    nt <- changeTerm t vn vs t'
+                    nts <- changeList ts vn vs t'
+                    Right (nt : nts)
