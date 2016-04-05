@@ -56,6 +56,10 @@ data Rules a s f = Axiom a | Refl (Term s f) | Sym (Rules a s f)
             | Trans (Rules a s f) (Rules a s f)
             | Cong f [Rules a s f] | App (Rules a s f) Name (Term s f)
 
+trans :: [Rules a s f] -> Rules a s f
+trans [p] = p
+trans (p:ps) = Trans p (trans ps)
+
 class (Signature s f) => Proof a s f | a -> s f where 
     axiom :: a -> Formula s f
     proof :: Rules a s f -> Either Err (Formula s f)

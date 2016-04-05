@@ -47,10 +47,6 @@ instance Proof Axioms Sort Fun where
 xx :: Term Sort Fun
 xx = (var "x" +. var "x")
 
-trans :: [Rules Axioms Sort Fun] -> Rules Axioms Sort Fun
-trans [p] = p
-trans (p:ps) = Trans p (trans ps)
-
 -- x + x = (x + x) + (x + x)
 proof1 :: Rules Axioms Sort Fun
 proof1 = trans
