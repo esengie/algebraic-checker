@@ -20,7 +20,7 @@ instance Signature Sort Fun where
 
 data Axioms = Assoc | El | Er | PInv_L | Passoc | PEl | PEr
             | PSym | PInv | Dist_R | Dist_L | Strange
-
+    deriving (Show)
 
 var x = Var x D
 x *. y = FunApp M [x,y]
@@ -29,7 +29,7 @@ inv x = FunApp INV [x]
 one = FunApp One []
 zero = FunApp Zero []
 
-instance Proof Axioms Sort Fun where
+instance Theory Axioms Sort Fun where
     axiom Assoc = (var "x" *. var "y") *. var "z" :== var "x" *. (var "y" *. var "z")
     axiom El = one *. var "x" :== var "x"
     axiom Er = var "x" *. one :== var "x"
@@ -50,7 +50,7 @@ xx = (var "x" +. var "x")
 -- x + x = (x + x) + (x + x)
 proof1 :: Rules Axioms Sort Fun
 proof1 = trans
-    [ App (Sym $ Axiom Strange) "x" xx
+    [ App (sym $ Axiom Strange) "x" xx
     , App (App (App (Axiom Dist_R) "x" xx) "y" (var "x")) "z" (var "x") 
     , Cong P $ replicate 2 (App (App (Axiom Dist_L) "y" (var "x")) "z" (var "x"))
     , Cong P $ replicate 2 $ Cong P $ replicate 2 (Axiom Strange)
@@ -67,7 +67,7 @@ proof2 = trans
 -- (x + x) = 0
 proof3 :: Rules Axioms Sort Fun
 proof3 = trans
-    [ Sym proof2
+    [ sym proof2
     , Cong P [Refl $ inv xx, Sym proof1]
     , App (Axiom PInv_L) "x" xx
     ]
