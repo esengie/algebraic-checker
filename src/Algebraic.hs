@@ -2,7 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 
 module Algebraic (
-    Rules(..),
+    Rule(..),
     Theory(..),
     proof,
     trans,
@@ -14,17 +14,20 @@ import Text.PrettyPrint
 
 import Term
 
-data Rules a s f = Axiom a | Refl (Term s f) | Sym (Rules a s f) 
-            | Trans (Rules a s f) (Rules a s f)
-            | Leib (Formula s f) Name (Rules a s f) (Rules a s f)
-            | Cong f [Rules a s f] | App (Rules a s f) Name (Term s f)
+data Rule a s f = Axiom a 
+            | Refl (Term s f) 
+            | Sym (Rule a s f) 
+            | Trans (Rule a s f) (Rule a s f)
+            | Leib (Formula s f) Name (Rule a s f) (Rule a s f)
+            | Cong f [Rule a s f] 
+            | App (Rule a s f) Name (Term s f)
     deriving (Show)
 
-trans :: (Theory a s f) => [Rules a s f] -> Rules a s f
+trans :: Theory a s f => [Rule a s f] -> Rule a s f
 trans [p] = p
 trans (p:ps) = Trans p (trans ps)
 
-sym :: (Theory a s f) => Rules a s f -> Rules a s f
+sym :: Theory a s f => Rule a s f -> Rule a s f
 sym r = case proof r of  
     Right (a :== b) -> 
         let k = typeOf a
@@ -36,7 +39,7 @@ sym r = case proof r of
 class (Show a, Signature s f) => Theory a s f | a -> s f where 
     axiom :: a -> Formula s f
 
-proof :: (Theory a s f) => Rules a s f -> Either Err (Formula s f)
+proof :: Theory a s f => Rule a s f -> Either Err (Formula s f)
 proof (Axiom f) = Right $ axiom f
 
 proof (Refl term) = do
@@ -73,11 +76,11 @@ proof (Leib (tL :== tR) v pIn pProof) = do
     check <- proof pProof
     let s1 = typeOf t1
     let s2 = typeOf t2
-    substL <- changeTerm tL v s1 t1
-    substR <- changeTerm tR v s1 t1    
+    substL <- subst tL v s1 t1
+    substR <- subst tR v s1 t1    
 
-    retL <- changeTerm tL v s2 t2
-    retR <- changeTerm tR v s2 t2
+    retL <- subst tL v s2 t2
+    retR <- subst tR v s2 t2
     if (check == (substL :== substR))
         then Right $ (retL :== retR)
         else Left "Incorrect substitution for Left side"
@@ -85,21 +88,6 @@ proof (Leib (tL :== tR) v pIn pProof) = do
 proof (App p v t) = do
     s <- typeCheck t
     (t1 :== t2) <- proof p
-    nt1 <- changeTerm t1 v s t
-    nt2 <- changeTerm t2 v s t
+    nt1 <- subst t1 v s t
+    nt2 <- subst t2 v s t
     Right $ nt1 :== nt2
-
-changeTerm :: (Signature s f) => Term s f -> Name -> s -> Term s f -> Either Err (Term s f)
-changeTerm v@(Var n s) vn vs t'
-    | n == vn && s == vs = Right t'
-    | n == vn && s /= vs = Left "Types of vars are different"
-    | otherwise = Right v
-changeTerm (FunApp n ts) vn vs t' = do
-    nts <- changeList ts vn vs t'
-    Right (FunApp n nts)
-        where 
-            changeList [] _ _ _ = Right []
-            changeList (t : ts) vn vs t' = do
-                nt <- changeTerm t vn vs t'
-                nts <- changeList ts vn vs t'
-                Right (nt : nts)

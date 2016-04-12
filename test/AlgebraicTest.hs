@@ -52,7 +52,7 @@ xx :: Term Sort Fun
 xx = (var "x" +. var "x")
 
 -- x + x = (x + x) + (x + x)
-proof1 :: Rules Axioms Sort Fun
+proof1 :: Rule Axioms Sort Fun
 proof1 = trans
     [ App (sym $ Axiom Strange) "x" xx
     , App (App (App (Axiom Dist_R) "x" xx) "y" (var "x")) "z" (var "x") 
@@ -61,7 +61,7 @@ proof1 = trans
     ]
 
 -- -(x + x) + ((x + x) + (x + x)) = x + x
-proof2 :: Rules Axioms Sort Fun
+proof2 :: Rule Axioms Sort Fun
 proof2 = trans
     [ App (App (App (Sym $ Axiom Passoc) "x" (inv xx)) "y" xx) "z" xx
     , Cong P [App (Axiom PInv_L) "x" xx, Refl xx]
@@ -69,7 +69,7 @@ proof2 = trans
     ]
 
 -- (x + x) = 0
-proof3 :: Rules Axioms Sort Fun
+proof3 :: Rule Axioms Sort Fun
 proof3 = trans
     [ sym proof2
     , Cong P [Refl $ inv xx, Sym proof1]
