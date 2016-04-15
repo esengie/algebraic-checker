@@ -31,4 +31,4 @@ msg = "Discrepancy \"x\":=\"D and F\"\n"
 erroneous = (Var "x" D) *. (Var "x" F) *. (Var "x" G)
 
 tTest :: Test
-tTest = TestCase $ assertEqual "Wrong sorts" (Left msg) (varsCheck erroneous)
+tTest = TestCase $ assertEqual "Wrong sorts" (Left msg) (varsCheckT erroneous)

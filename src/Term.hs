@@ -8,14 +8,16 @@ module Term (
     Signature(..),
     Term(..),
     VarNames,
+    combine,
     emptyVNS,
     fromListVNS,
     subst,
+    typeCheckTerm,
+    typeCheckFormula,
     typeOf,
-    typeCheck,
-    typeFormula,
     vars,
-    varsCheck,
+    varsCheckF,
+    varsCheckT,
     varNotIn,
     )
     where
@@ -38,7 +40,6 @@ emptyVNS = Map.empty
 fromListVNS :: [(Name, s)] -> VarNames s
 fromListVNS lst = Map.fromList lst
 
-
 data Term s f = Var Name s | FunApp f [Term s f] 
     deriving (Eq)
 
@@ -59,8 +60,8 @@ err (Var n1 a) (Var n2 b) | a == b = Right a
         | otherwise = Left $ "Same name, different sorts: " ++ show n1 
             ++ " : " ++ show a ++ " and " ++ show b
 
-varsCheck :: Signature s f => Term s f -> Either Err (VarNames s)
-varsCheck t = vars' t Map.empty
+varsCheckT :: Signature s f => Term s f -> Either Err (VarNames s)
+varsCheckT t = vars' t Map.empty
     where 
         vars' v@(Var k s) m = let mv = Map.lookup k m in 
           case mv of 
@@ -69,9 +70,14 @@ varsCheck t = vars' t Map.empty
                 _ <- err v (Var k v2)
                 return m
         vars' (FunApp f l) s =  do
-            let lst = map varsCheck l
+            let lst = map varsCheckT l
             let memp = Map.empty
             foldM combine memp lst
+
+varsCheckF :: Signature s f => Formula s f -> Either Err (VarNames s)
+varsCheckF (a :== b) = do
+    l <- varsCheckT a
+    combine l $ varsCheckT b
 
 combine :: Signature s f => (VarNames s) -> Either Err (VarNames s) -> Either Err (VarNames s)
 combine m1 b = do 
@@ -100,27 +106,28 @@ typeOf (FunApp f _) = cod f
 
 type Err = String
 
-typeCheck :: Signature s f => Term s f -> Either Err s
-typeCheck (Var _ s) = Right s
-typeCheck x@(FunApp f lst) = do
-    sequence (map typeCheck lst)
+typeCheckTerm :: Signature s f => Term s f -> Either Err s
+typeCheckTerm (Var _ s) = Right s
+typeCheckTerm x@(FunApp f lst) = do
+    sequence (map typeCheckTerm lst)
     let types = map typeOf lst
     if dom f == types
         then Right $ typeOf x
         else Left $ "Domain of " ++ show f ++ " is not " ++ show types ++ " in " ++ show lst
 
-typeFormula :: Signature s f => Formula s f -> Either Err s
-typeFormula (a :== b) = do 
-    x <- typeCheck a
-    y <- typeCheck b
+typeCheckFormula :: Signature s f => Formula s f -> Either Err s
+typeCheckFormula (a :== b) = do 
+    x <- typeCheckTerm a
+    y <- typeCheckTerm b
     if typeOf a == typeOf b
-        then Right x
+        then return x
         else Left $ "Type mismatch: " ++ show a ++ " and " ++ show b
 
 subst :: Signature s f => Term s f -> Name -> s -> Term s f -> Either Err (Term s f)
 subst v@(Var n s) vn vs t'
     | n == vn && s == vs = Right t'
-    | n == vn && s /= vs = Left "Types of vars are different"
+    | n == vn && s /= vs = Left $ "Types of vars are different, can't substitute " 
+        ++ vn ++ ":" ++ show vs ++ " for " ++ n ++ ":" ++ show s
     | otherwise = Right v
 subst (FunApp n ts) vn vs t' = do
     nts <- changeList ts vn vs t'

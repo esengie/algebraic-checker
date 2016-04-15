@@ -43,7 +43,7 @@ proof :: Theory a s f => Rule a s f -> Either Err (Formula s f)
 proof (Axiom f) = Right $ axiom f
 
 proof (Refl term) = do
-    _ <- typeCheck term  
+    _ <- typeCheckTerm term  
     Right $ term :== term
 
 proof (Sym pr) = do 
@@ -61,8 +61,8 @@ proof (Cong f ps) = do
     (ts1, ts2) <- buildFunction ps
     let t1 = FunApp f ts1
     let t2 = FunApp f ts2
-    _ <- typeCheck t1
-    _ <- typeCheck t2
+    _ <- typeCheckTerm t1
+    _ <- typeCheckTerm t2
     Right $ t1 :== t2
         where
             buildFunction [] = Right ([], [])
@@ -86,7 +86,7 @@ proof (Leib (tL :== tR) v pIn pProof) = do
         else Left "Incorrect substitution for Left side"
     
 proof (App p v t) = do
-    s <- typeCheck t
+    s <- typeCheckTerm t
     (t1 :== t2) <- proof p
     nt1 <- subst t1 v s t
     nt2 <- subst t2 v s t
