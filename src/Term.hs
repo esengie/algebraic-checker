@@ -7,13 +7,16 @@ module Term (
     Name,
     Signature(..),
     Term(..),
+    VarNames,
+    emptyVNS,
+    fromListVNS,
     subst,
     typeOf,
     typeCheck,
     typeFormula,
     vars,
+    varsCheck,
     varNotIn,
-    varsCheck
     )
     where
 
@@ -27,6 +30,15 @@ class (Eq s, Show s, Eq f, Show f) => Signature s f | f -> s, s -> f where
 
 type Name = String 
 
+type VarNames s = Map.Map Name s
+
+emptyVNS :: VarNames s
+emptyVNS = Map.empty
+
+fromListVNS :: [(Name, s)] -> VarNames s
+fromListVNS lst = Map.fromList lst
+
+
 data Term s f = Var Name s | FunApp f [Term s f] 
     deriving (Eq)
 
@@ -35,7 +47,8 @@ instance (Show s, Show f) => Show (Term s f) where
     show (FunApp f ts) = show f ++ "(" ++ intercalate ", " (map show ts) ++ ")"
 
 infix 4 :==
-data Formula s f = Term s f :== Term s f
+data Formula s f = (:==) { leftT :: Term s f,
+                           rightT :: Term s f}
     deriving (Eq)
 
 instance (Show s, Show f) => Show (Formula s f) where
@@ -46,7 +59,7 @@ err (Var n1 a) (Var n2 b) | a == b = Right a
         | otherwise = Left $ "Same name, different sorts: " ++ show n1 
             ++ " : " ++ show a ++ " and " ++ show b
 
-varsCheck :: Signature s f => Term s f -> Either Err (Map.Map Name s)
+varsCheck :: Signature s f => Term s f -> Either Err (VarNames s)
 varsCheck t = vars' t Map.empty
     where 
         vars' v@(Var k s) m = let mv = Map.lookup k m in 
@@ -60,7 +73,7 @@ varsCheck t = vars' t Map.empty
             let memp = Map.empty
             foldM combine memp lst
 
-combine :: Signature s f => (Map.Map Name s) -> Either Err (Map.Map Name s) -> Either Err (Map.Map Name s)
+combine :: Signature s f => (VarNames s) -> Either Err (VarNames s) -> Either Err (VarNames s)
 combine m1 b = do 
     m2 <- b
     let left = Map.intersection m1 m2
@@ -69,7 +82,7 @@ combine m1 b = do
         else Left $ "Discrepancy " ++ Map.showTree 
           (Map.intersectionWith (\a b-> show a ++ " and " ++ show b) left right)
 
-vars :: Signature s f => Term s f -> Map.Map Name s
+vars :: Signature s f => Term s f -> VarNames s
 vars t = vars' t Map.empty
     where 
         vars' (Var k s) m = Map.insert k s m
