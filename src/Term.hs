@@ -15,10 +15,11 @@ module Term (
     typeCheckTerm,
     typeCheckFormula,
     typeOf,
-    vars,
     varsCheckF,
     varsCheckT,
     varNotIn,
+    varsFormula,
+    varsTerm,
     )
     where
 
@@ -79,6 +80,8 @@ varsCheckF (a :== b) = do
     l <- varsCheckT a
     combine l $ varsCheckT b
 
+
+-- Combines two var sets, error if vars have one name but different sort
 combine :: Signature s f => (VarNames s) -> Either Err (VarNames s) -> Either Err (VarNames s)
 combine m1 b = do 
     m2 <- b
@@ -88,14 +91,17 @@ combine m1 b = do
         else Left $ "Discrepancy " ++ Map.showTree 
           (Map.intersectionWith (\a b-> show a ++ " and " ++ show b) left right)
 
-vars :: Signature s f => Term s f -> VarNames s
-vars t = vars' t Map.empty
+varsTerm :: Signature s f => Term s f -> VarNames s
+varsTerm t = vars' t Map.empty
     where 
         vars' (Var k s) m = Map.insert k s m
-        vars' (FunApp f l) s = foldl Map.union Map.empty $ map vars l
+        vars' (FunApp f l) s = foldl Map.union Map.empty $ map varsTerm l
+
+varsFormula :: Signature s f => Formula s f -> VarNames s
+varsFormula (a :== b) = Map.union (varsTerm a) (varsTerm b)
 
 varNotIn :: Signature s f => Term s f -> Name
-varNotIn t = let names = vars t in
+varNotIn t = let names = varsTerm t in
     getName "vvvvvv" names where
         getName s names | Map.member s names = getName ('v':s) names
                         | otherwise = s    

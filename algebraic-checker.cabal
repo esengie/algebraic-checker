@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Term
-                    -- , Algebraic
+                     , Algebraic
                      , Horn
   build-depends:       base >= 4.7 && < 5
                      , pretty == 1.1.*

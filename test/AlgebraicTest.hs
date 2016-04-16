@@ -54,9 +54,13 @@ xx = (var "x" +. var "x")
 -- x + x = (x + x) + (x + x)
 proof1 :: Rule Axioms Sort Fun
 proof1 = trans
-    [ App (sym $ Axiom Strange) "x" xx
+    -- x+x = (x+x) * (x+x)
+    [ App (sym $ Axiom Strange) "x" xx 
+    -- (x+x) * (x+x) = ((x+x) * x) + ((x+x) * x)
     , App (App (App (Axiom Dist_R) "x" xx) "y" (var "x")) "z" (var "x") 
+    -- ((x+x) * x) + ((x+x) * x) = (x*x + x*x) + (x*x + x*x)
     , Cong P $ replicate 2 (App (App (Axiom Dist_L) "y" (var "x")) "z" (var "x"))
+    -- ((x * x) + (x * x)) + ((x * x) + (x * x)) = (x + x) + (x + x)
     , Cong P $ replicate 2 $ Cong P $ replicate 2 (Axiom Strange)
     ]
 

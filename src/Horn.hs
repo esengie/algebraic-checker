@@ -1,7 +1,17 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
+ {-# LANGUAGE FunctionalDependencies #-}
 
-module Horn where
+module Horn (
+    HAxiom(..),
+    HRule(..),
+    HTheory(..),
+    Sequent,
+    createSeq,
+    hAxiom,
+    proof,
+    --varsSequent,
+    )
+    where
 
 import Control.Monad(foldM)
 import Data.List(tail, init)
@@ -24,6 +34,12 @@ createSeq left right = do
     typeCheckSeq seqt
     return seqt
 
+
+varsSequent :: Signature s f => Sequent s f -> VarNames s
+varsSequent seq = Map.union (thing (leftS seq)) $ thing $ rightS seq
+    where thing st = foldl (\a b -> Map.union a (varsFormula b)) Map.empty st
+
+-- Checks that the vars are of the same sort everywhere they are mentioned
 varsCheckS :: Signature s f => Sequent s f -> Either Err (VarNames s)
 varsCheckS seqt = do
     let lst1 = map varsCheckF $ leftS seqt
@@ -84,10 +100,10 @@ isVarEqualityFormula ((Var n sr) :== (Var _ _)) = Right (n,sr)
 isVarEqualityFormula _ = Left "Not Vars on the sides of formula"
 
 
-class (Show (a s f), Signature s f) => HTheory a s f where 
-    uAxiom :: a s f -> Either Err (Sequent s f)
+class (Show (a s f), Signature s f) => HTheory a s f | a -> s f, s f -> a where 
+    axiom :: a s f -> Either Err (Sequent s f)
 
-data HRule a s f = UAxiom (a s f)
+data HRule a s f = Axiom (a s f)
         | RAxiom (HAxiom s f)
         | Comp (HRule a s f) (HRule a s f)
         | IAnd (HRule a s f) (HRule a s f)
@@ -95,37 +111,46 @@ data HRule a s f = UAxiom (a s f)
     deriving (Show)
 
 proof :: HTheory a s f => HRule a s f -> Either Err (Sequent s f)
+-- This is user defined so checks the correctness of that
+proof (Axiom s) = do
+    a <- axiom s
+    typeCheckSeq a
+    varsCheckS a
+    return a
 -------------------------------------------------
-proof (UAxiom s) = uAxiom s -- add varchecking
--------------------------------------------------
+
 proof (RAxiom s) = hAxiom s
 
 proof (Comp a b) = do
-    s1@(Seq v1 ll lr) <- proof a
-    --v1' <- varsCheckS s1
-    s2@(Seq v2 rl rr) <- proof b
-    --v2' <- varsCheckS s2
+    (Seq v1 ll lr) <- proof a
+    (Seq v2 rl rr) <- proof b
     vmap <- combine v1 (Right v2)
     if lr == rl then return $ Seq vmap ll rr -- may add unneeded vars into context
-        else Left $ "Congruence does't work " ++ show lr ++ " isn't the same as " ++ show rl
+        else Left $ "Composition doesn't work " ++ show lr ++ " isn't the same as " ++ show rl
 
 proof (IAnd a b) = do 
-    s1@(Seq v1 ll lr) <- proof a
-    --v1' <- varsCheckS s1              -- I'll double check if this is needed or not
-    s2@(Seq v2 rl rr) <- proof b
-    --v2' <- varsCheckS s2
+    (Seq v1 ll lr) <- proof a
+    (Seq v2 rl rr) <- proof b
     vmap <- combine v1 (Right v2)
     if ll == rl then return $ Seq vmap ll (lr ++ rr)
-        else Left $ "IAnd does't work " ++ show ll ++ " isn't the same as " ++ show rl    
+        else Left $ "IAnd doesn't work " ++ show ll ++ " isn't the same as " ++ show rl    
 
 proof (Subst seq' nam term) = do
-    (Seq vsSeq l r) <- proof seq'
+    sq@(Seq vsSeq l r) <- proof seq'
+    -- Just to check
+    (Seq llVars _ _) <- createSeq l []
+    check nam llVars sq
+    ------
     sortTerm <- typeCheckTerm term
-    let vsT = vars term
+    let vsT = varsTerm term
     allVs <- combine vsT (Right vsSeq) -- to check compatibility
     l' <- sequence $ map (substMapper nam sortTerm term) l
     r' <- sequence $ map (substMapper nam sortTerm term) r
-    return $ Seq allVs l r
+    return $ Seq allVs l' r'
+        where check nam mp sq = if Map.member nam mp
+                then Right ()
+                else Left $ "Subst " ++ nam ++ " is not a free var on the left side of " 
+                    ++ show sq
 
 data Sort = D | F | G
     deriving (Show, Eq)
