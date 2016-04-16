@@ -2,12 +2,10 @@
  {-# LANGUAGE FunctionalDependencies #-}
 
 module Horn (
-    HAxiom(..),
     HRule(..),
     HTheory(..),
     Sequent,
     createSeq,
-    hAxiom,
     proof,
     --varsSequent,
     )
@@ -55,60 +53,27 @@ typeCheckSeq seqt = do
     let lst1 = map typeCheckFormula $ leftS seqt
     let lst2 = map typeCheckFormula $ rightS seqt
     sequence_ (lst1 ++ lst2)
-
-data HAxiom s f = Id [Formula s f]
-    | Top [Formula s f]
-    | EAndL [Formula s f]
-    | EAndR [Formula s f]
-    | HRefl (VarNames s)
-    | HLeib [Formula s f]
-    deriving (Show, Eq)
-
-hAxiom :: Signature s f => HAxiom s f -> Either Err (Sequent s f)
-hAxiom (Id f) = createSeq f f
-
-hAxiom (Top f) = createSeq f []
-
-hAxiom (EAndL []) = Left "EAndL must have at least one formula to the left"
-hAxiom (EAndL f) = createSeq f $ tail f
-
-hAxiom (EAndR []) = Left "EAndR must have at least one formula to the left"
-hAxiom (EAndR f) = createSeq f $ init f
-
-hAxiom (HRefl vm) 
-  | vm == emptyVNS = Left "Can't apply HRefl to empty set of vars"
-  | otherwise = 
-    let (nel, sel) = Map.elemAt 0 vm
-        v = Var nel sel in
-            createSeq [] $ [v :== v]
-
-hAxiom (HLeib []) = Left "Leib must have at least one formula to the left"
-hAxiom (HLeib f@(x:xs)) = case isVarEqualityFormula x of
-    Left _ -> Left "Leib must have at least one Vars equality to the left"
-    Right (n, sr) -> do
-        a <- sequence $ map (substMapper n sr $ rightT x) xs
-        createSeq f a
                  
-substMapper :: Signature s f => Name -> s -> Term s f -> Formula s f -> Either Err (Formula s f)
-substMapper name sort t (a :== b) = do 
+substIntoF :: Signature s f => Name -> s -> Term s f -> Formula s f -> Either Err (Formula s f)
+substIntoF name sort t (a :== b) = do 
     l <- (subst a name sort t)
     r <- (subst b name sort t)
     return $ l :== r
-
-isVarEqualityFormula :: Signature s f => Formula s f -> Either Err (Name, s)
-isVarEqualityFormula ((Var n sr) :== (Var _ _)) = Right (n,sr)
-isVarEqualityFormula _ = Left "Not Vars on the sides of formula"
-
 
 class (Show (a s f), Signature s f) => HTheory a s f | a -> s f, s f -> a where 
     axiom :: a s f -> Either Err (Sequent s f)
 
 data HRule a s f = Axiom (a s f)
-        | RAxiom (HAxiom s f)
+        | Id [Formula s f]     --           phi |- phi
+        | Top [Formula s f]    --           phi |- Top
+        | EAndL [Formula s f]  --   phi and psi |- phi
+        | EAndR [Formula s f]  --   phi and psi |- psi
+        | HRefl (VarNames s)   --               |- x = x
+        | HLeib [Formula s f]  -- x = y and phi |- phi[y/x]
         | Comp (HRule a s f) (HRule a s f)
         | IAnd (HRule a s f) (HRule a s f)
         | Subst (HRule a s f) Name (Term s f)
-    deriving (Show)
+    deriving (Show, Eq)
 
 proof :: HTheory a s f => HRule a s f -> Either Err (Sequent s f)
 -- This is user defined so checks the correctness of that
@@ -118,8 +83,33 @@ proof (Axiom s) = do
     varsCheckS a
     return a
 -------------------------------------------------
+proof (Id f) = createSeq f f
 
-proof (RAxiom s) = hAxiom s
+proof (Top f) = createSeq f []
+
+proof (EAndL []) = Left "EAndL must have at least one formula to the left"
+proof (EAndL f) = createSeq f $ tail f
+
+proof (EAndR []) = Left "EAndR must have at least one formula to the left"
+proof (EAndR f) = createSeq f $ init f
+
+proof (HRefl vm) 
+  | vm == emptyVNS = Left "Can't apply HRefl to empty set of vars"
+  | otherwise = 
+    let (nel, sel) = Map.elemAt 0 vm
+        v = Var nel sel in
+            createSeq [] $ [v :== v]
+
+proof (HLeib []) = Left "Leib must have at least one formula to the left"
+proof (HLeib f@(x:xs)) = case isVarEqualityFormula x of
+    Left _ -> Left "Leib must have at least one Vars equality to the left"
+    Right (n, sr) -> do
+        a <- sequence $ map (substIntoF n sr $ rightT x) xs
+        createSeq f a
+
+    where isVarEqualityFormula ((Var n sr) :== (Var _ _)) = Right (n,sr)
+          isVarEqualityFormula _ = Left "Not Vars on the sides of formula"
+
 
 proof (Comp a b) = do
     (Seq v1 ll lr) <- proof a
@@ -144,8 +134,8 @@ proof (Subst seq' nam term) = do
     sortTerm <- typeCheckTerm term
     let vsT = varsTerm term
     allVs <- combine vsT (Right vsSeq) -- to check compatibility
-    l' <- sequence $ map (substMapper nam sortTerm term) l
-    r' <- sequence $ map (substMapper nam sortTerm term) r
+    l' <- sequence $ map (substIntoF nam sortTerm term) l
+    r' <- sequence $ map (substIntoF nam sortTerm term) r
     return $ Seq allVs l' r'
         where check nam mp sq = if Map.member nam mp
                 then Right ()
