@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
- {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Horn (
     HRule(..),
@@ -13,6 +14,7 @@ module Horn (
 
 import Control.Monad(foldM)
 import Data.List(tail, init)
+import LaCarte
 import qualified Data.Map as Map
 
 import Term
@@ -63,7 +65,9 @@ substIntoF name sort t (a :== b) = do
 class (Show (a s f), Signature s f) => HTheory a s f | a -> s f, s f -> a where 
     axiom :: a s f -> Either Err (Sequent s f)
 
-data HRule a s f = Axiom (a s f)
+data HRule a s f
+        = Axiom (a s f)
+        -- | User (ala (HRule a s f ala))
         | Id [Formula s f]     --           phi |- phi
         | Top [Formula s f]    --           phi |- Top
         | EAndL [Formula s f]  --   phi and psi |- phi
@@ -73,9 +77,24 @@ data HRule a s f = Axiom (a s f)
         | Comp (HRule a s f) (HRule a s f)
         | IAnd (HRule a s f) (HRule a s f)
         | Subst (HRule a s f) Name (Term s f)
-    deriving (Show, Eq)
+    deriving (Show)
+-----------------------------------------------------------------
 
-proof :: HTheory a s f => HRule a s f -> Either Err (Sequent s f)
+--data Empty r
+--type IniRules a s f = HRule a s f Empty
+
+--data Sym r = Sym r
+--data Trans r = Trans r r
+--data Congr r = Congr r r r
+
+--type ExtRules a s f = HRule a s f (Sym :+: Trans :+: Congr)
+
+--class UserRules ala where
+--    def :: ala (HRule a s f t) -> HRule a s f ala
+
+-----------------------------------------------------------------
+
+proof :: (HTheory a s f {-, UserRules t -}) => HRule a s f -> Either Err (Sequent s f)
 -- This is user defined so checks the correctness of that
 proof (Axiom s) = do
     a <- axiom s
@@ -83,6 +102,7 @@ proof (Axiom s) = do
     varsCheckS a
     return a
 -------------------------------------------------
+
 proof (Id f) = createSeq f f
 
 proof (Top f) = createSeq f []
@@ -110,7 +130,6 @@ proof (HLeib f@(x:xs)) = case isVarEqualityFormula x of
     where isVarEqualityFormula ((Var n sr) :== (Var _ _)) = Right (n,sr)
           isVarEqualityFormula _ = Left "Not Vars on the sides of formula"
 
-
 proof (Comp a b) = do
     (Seq v1 ll lr) <- proof a
     (Seq v2 rl rr) <- proof b
@@ -130,7 +149,7 @@ proof (Subst seq' nam term) = do
     -- Just to check
     (Seq llVars _ _) <- createSeq l []
     check nam llVars sq
-    ------
+    -------------------
     sortTerm <- typeCheckTerm term
     let vsT = varsTerm term
     allVs <- combine vsT (Right vsSeq) -- to check compatibility
@@ -142,24 +161,15 @@ proof (Subst seq' nam term) = do
                 else Left $ "Subst " ++ nam ++ " is not a free var on the left side of " 
                     ++ show sq
 
-data Sort = D | F | G
-    deriving (Show, Eq)
-    
-data Fun = M | P | One | Zero | INV 
-    deriving (Show, Eq)
 
-instance Signature Sort Fun where
-    dom M = [D, D]
-    dom P = [D, D]
-    dom One = []
-    dom Zero = []
-    dom INV = [D]
 
-    cod _ = D
 
-vs = fromListVNS [("x", D), ("y", D)]
 
-fmla2 = [Var "x" D :== Var "y" D, Var "x" F :== Var "y" D]
-fmla1 = [Var "x" D :== Var "y" D, Var "x" D :== Var "y" D]
+
+
+
+
+
+
 
 -- res = (Seq {varNs = fromList [("x",D),("y",D)], left = [x = y,x = y], right = [y = y]})

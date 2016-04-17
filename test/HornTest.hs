@@ -42,7 +42,7 @@ one = EAndL [var "x" *. (var "x" +. var "y") :== var "x", var "x" +. (var "x" *.
 one' = Subst one "y" (var "x" +. var "x")
 
 two = IAnd (Axiom AndAbsorb) (Axiom OrAbsorb)
-two' = 
+--two' = 
 
 three = Comp two one'
 -- var "x" +. var "x" == var "x" +. (var "x" *. (var "x" +. var "x"))
@@ -50,3 +50,25 @@ three = Comp two one'
 
 
 -- Я не понимаю смысла польз аксиом
+
+
+
+data Sort2 = D | F | G
+    deriving (Show, Eq)
+    
+data Fun2 = M | P | One | Zero | INV 
+    deriving (Show, Eq)
+
+instance Signature Sort2 Fun2 where
+    dom M = [D, D]
+    dom P = [D, D]
+    dom One = []
+    dom Zero = []
+    dom INV = [D]
+
+    cod _ = D
+
+vs = fromListVNS [("x", D), ("y", D)]
+
+fmla2 = [Var "x" D :== Var "y" D, Var "x" F :== Var "y" D]
+fmla1 = [Var "x" D :== Var "y" D, Var "x" D :== Var "y" D]
