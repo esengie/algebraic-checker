@@ -3,12 +3,11 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Horn (
-    HRule(..),
-    HTheory(..),
+    Rule(..),
+    Theory(..),
     Sequent,
     createSeq,
     proof,
-    --varsSequent,
     )
     where
 
@@ -56,45 +55,49 @@ typeCheckSeq seqt = do
     let lst2 = map typeCheckFormula $ rightS seqt
     sequence_ (lst1 ++ lst2)
                  
-substIntoF :: Signature s f => Name -> s -> Term s f -> Formula s f -> Either Err (Formula s f)
-substIntoF name sort t (a :== b) = do 
-    l <- (subst a name sort t)
-    r <- (subst b name sort t)
-    return $ l :== r
 
-class (Show (a s f), Signature s f) => HTheory a s f | a -> s f, s f -> a where 
+class (Show (a s f), Signature s f) => Theory a s f | a -> s f, s f -> a where 
     axiom :: a s f -> Either Err (Sequent s f)
 
-data HRule a s f
+
+data Rule a s f ala
         = Axiom (a s f)
-        -- | User (ala (HRule a s f ala))
+        ----------------------------------------------------
+        | User (ala (Rule a s f ala))
+        | Sym [Formula s f]    --                a :== b |- b :== a
+        | Trans [Formula s f]  --    a :== b and b :== c |- a :== c
+        | Congr [Formula s f]      -- x_i :== y_i and f(x_i) |- f(y_i)
+        ----------------------------------------------------
         | Id [Formula s f]     --           phi |- phi
         | Top [Formula s f]    --           phi |- Top
         | EAndL [Formula s f]  --   phi and psi |- phi
         | EAndR [Formula s f]  --   phi and psi |- psi
-        | HRefl (VarNames s)   --               |- x = x
-        | HLeib [Formula s f]  -- x = y and phi |- phi[y/x]
-        | Comp (HRule a s f) (HRule a s f)
-        | IAnd (HRule a s f) (HRule a s f)
-        | Subst (HRule a s f) Name (Term s f)
-    deriving (Show)
+        | Refl (VarNames s)   --               |- x = x
+        | Leib [Formula s f]  -- x = y and phi |- phi[y/x]
+        | Comp (Rule a s f ala) (Rule a s f ala)
+        | IAnd (Rule a s f ala) (Rule a s f ala)
+        | Subst (Rule a s f ala) Name (Term s f)
+    
+    --deriving (Show)
+
+
 -----------------------------------------------------------------
 
---data Empty r
---type IniRules a s f = HRule a s f Empty
+data Empty r
+type IniRules a s f = Rule a s f Empty
 
 --data Sym r = Sym r
 --data Trans r = Trans r r
---data Congr r = Congr r r r
+--data Congr r = Congr r r
 
---type ExtRules a s f = HRule a s f (Sym :+: Trans :+: Congr)
+--type ExtRules a s f = Rule a s f (Sym :+: Trans :+: Congr)
 
---class UserRules ala where
---    def :: ala (HRule a s f t) -> HRule a s f ala
+class UserRules ala where
+    def :: ala (Rule a s f t) -> Rule a s f ala
 
 -----------------------------------------------------------------
 
-proof :: (HTheory a s f {-, UserRules t -}) => HRule a s f -> Either Err (Sequent s f)
+proof :: (Theory a s f {-, UserRules t -}) => IniRules a s f -> Either Err (Sequent s f)
 -- This is user defined so checks the correctness of that
 proof (Axiom s) = do
     a <- axiom s
@@ -103,6 +106,33 @@ proof (Axiom s) = do
     return a
 -------------------------------------------------
 
+proof (Sym []) = Left "Refl must have one formula not ZERO"
+proof (Sym [(a :== b)]) = createSeq [(a :== b)] [(b :== a)]
+proof (Sym _) = Left "Refl must have one formula not MANY"
+
+proof (Trans []) = Left "Refl must have two formulas not ZERO"
+proof (Trans [x]) = Left "Refl must have two formulas not ONE"
+proof (Trans l@([(a :== b), (b1 :== c)])) = if b == b1
+    then createSeq l [a :== c]
+    else Left $ "Trans doesn't work"
+proof (Trans _) = Left "Refl must have two formulas not MANY"
+
+proof (Congr []) = Left "Congruence needs at least a function"
+proof (Congr lst) = do 
+    let a@(fnl :== fnr) = last lst
+    _ <- checkVars $ init lst
+    if fnl /= fnr then Left "Func must be defined"
+        else do
+            let lefts = map leftT (init lst)
+            let rights = map rightT (init lst)
+            sfnr <- foldM subsst fnr (zip lefts rights)
+            createSeq lst [(fnl :== sfnr)]
+                where subsst t ((Var name srt), y) = subst t name srt y
+                      checkVars [] = Right ()
+                      checkVars (((Var _ _) :== (Var _ _)):xs) = checkVars xs
+                      checkVars (x:xs) = Left $ show x ++ " is not a var formula! Congr needs a list of vars before a function"
+
+----------------------------------------------------------------------
 proof (Id f) = createSeq f f
 
 proof (Top f) = createSeq f []
@@ -113,15 +143,15 @@ proof (EAndL f) = createSeq f $ tail f
 proof (EAndR []) = Left "EAndR must have at least one formula to the left"
 proof (EAndR f) = createSeq f $ init f
 
-proof (HRefl vm) 
-  | vm == emptyVNS = Left "Can't apply HRefl to empty set of vars"
+proof (Refl vm) 
+  | vm == emptyVNS = Left "Can't apply Refl to empty set of vars"
   | otherwise = 
     let (nel, sel) = Map.elemAt 0 vm
         v = Var nel sel in
             createSeq [] $ [v :== v]
 
-proof (HLeib []) = Left "Leib must have at least one formula to the left"
-proof (HLeib f@(x:xs)) = case isVarEqualityFormula x of
+proof (Leib []) = Left "Leib must have at least one formula to the left"
+proof (Leib f@(x:xs)) = case isVarEqualityFormula x of
     Left _ -> Left "Leib must have at least one Vars equality to the left"
     Right (n, sr) -> do
         a <- sequence $ map (substIntoF n sr $ rightT x) xs
@@ -163,13 +193,4 @@ proof (Subst seq' nam term) = do
 
 
 
-
-
-
-
-
-
-
-
-
--- res = (Seq {varNs = fromList [("x",D),("y",D)], left = [x = y,x = y], right = [y = y]})
+                    

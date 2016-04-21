@@ -12,6 +12,7 @@ module Term (
     emptyVNS,
     fromListVNS,
     subst,
+    substIntoF,
     typeCheckTerm,
     typeCheckFormula,
     typeOf,
@@ -145,4 +146,8 @@ subst (FunApp n ts) vn vs t' = do
                 nts <- changeList ts vn vs t'
                 Right (nt : nts)
 
-
+substIntoF :: Signature s f => Name -> s -> Term s f -> Formula s f -> Either Err (Formula s f)
+substIntoF name sort t (a :== b) = do 
+    l <- (subst a name sort t)
+    r <- (subst b name sort t)
+    return $ l :== r

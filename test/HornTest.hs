@@ -2,12 +2,12 @@
 
 module HornTest where
 
---import Test.HUnit
+import Test.HUnit
 
 import Horn
 import Term
 
-data Sort = L
+data Sort = L | Dr
     deriving (Show, Eq)
     
 data Fun = And | Or
@@ -26,7 +26,7 @@ var x = Var x L
 x *. y = FunApp And [x,y]
 x +. y = FunApp Or [x,y]
 
-instance HTheory Axioms Sort Fun where
+instance Theory Axioms Sort Fun where
     axiom AndAssoc = createSeq [] [(var "x" *. var "y") *. var "z" :== var "x" *. (var "y" *. var "z")]
     axiom OrAssoc = createSeq [] [(var "x" +. var "y") +. var "z" :== var "x" +. (var "y" +. var "z")]
     axiom AndComm = createSeq [] [var "x" *. var "y" :== var "y" *. var "x"]
@@ -34,7 +34,7 @@ instance HTheory Axioms Sort Fun where
     axiom AndAbsorb = createSeq [] [var "x" *. (var "x" +. var "y") :== var "x"]
     axiom OrAbsorb = createSeq [] [var "x" +. (var "x" *. var "y") :== var "x"]
 
-zero = HRefl $ fromListVNS [("x", L)]
+zero = Refl $ fromListVNS [("x", L)]
 
 
 -- x +. (x *. (x +. x)) = x
@@ -47,28 +47,12 @@ two = IAnd (Axiom AndAbsorb) (Axiom OrAbsorb)
 three = Comp two one'
 -- var "x" +. var "x" == var "x" +. (var "x" *. (var "x" +. var "x"))
 --two
+four = Congr [var "x":== Var "y" Dr, var "x" *. var "z" :== var "x" *. var "z"]
 
+four' = Congr [var "x" *. var "y" :== Var "y" Dr, var "x" *. var "z" :== var "x" *. var "z"]
 
--- Я не понимаю смысла польз аксиом
+isLeft (Left _) = True
+isLeft (Right _) = False
 
-
-
-data Sort2 = D | F | G
-    deriving (Show, Eq)
-    
-data Fun2 = M | P | One | Zero | INV 
-    deriving (Show, Eq)
-
-instance Signature Sort2 Fun2 where
-    dom M = [D, D]
-    dom P = [D, D]
-    dom One = []
-    dom Zero = []
-    dom INV = [D]
-
-    cod _ = D
-
-vs = fromListVNS [("x", D), ("y", D)]
-
-fmla2 = [Var "x" D :== Var "y" D, Var "x" F :== Var "y" D]
-fmla1 = [Var "x" D :== Var "y" D, Var "x" D :== Var "y" D]
+hTest1 = TestCase $ assertBool "H first" $ isLeft $ proof four
+hTest2 = TestCase $ assertBool "H first" $ isLeft $ proof four'
