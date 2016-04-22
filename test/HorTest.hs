@@ -146,8 +146,7 @@ ref3_2 = H.Axiom (CodId "x")
 
 ------------- Так можно?
 step3_1 = H.Congr [obj "z" :== obj "y", obj "z'" :== obj "y'",
-    H.defFun (proj2(obj "z", obj "z'") *. pairF[excl(obj "x"), id'(obj "x")])]  --- neeed to use DotUse
------ and DefPaHomTo
+    H.defFun (proj2(obj "z", obj "z'") *. pairF[excl(obj "x"), id'(obj "x")])]
 
 step3_2 = H.Subst (H.Subst step3_1 "z" $ cod'(excl(obj"x"))) "y" top
 step3_3 = H.Subst (H.Subst step3_2 "z'" $ cod'(id'(obj "x"))) "y'" $ obj "x"
