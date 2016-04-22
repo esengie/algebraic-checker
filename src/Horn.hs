@@ -6,6 +6,9 @@ module Horn (
     Rule(..),
     Theory(..),
     Sequent,
+    leftS,
+    rightS,
+    defFun,
     createSeq,
     proof,
     )
@@ -21,7 +24,13 @@ import Term
 data Sequent s f = Seq { varNs :: VarNames s,
             leftS :: [Formula s f],
             rightS :: [Formula s f]}
-    deriving (Show, Eq)
+    deriving (Eq)
+
+defFun :: Signature s f => Term s f -> Formula s f
+defFun b = b :== b
+
+instance (Signature s f) => Show (Sequent s f) where
+    show seq = show (leftS seq) ++ " |- " ++ show (varNs seq) ++ " -- " ++ show (rightS seq)
 
 createSeq :: Signature s f => [Formula s f] -> [Formula s f] -> Either Err (Sequent s f)
 createSeq left right = do
@@ -66,7 +75,8 @@ data Rule a s f ala
         | User (ala (Rule a s f ala))
         | Sym [Formula s f]    --                a :== b |- b :== a
         | Trans [Formula s f]  --    a :== b and b :== c |- a :== c
-        | Congr [Formula s f]      -- x_i :== y_i and f(x_i) |- f(y_i)
+        | Congr [Formula s f]  -- x_i :== y_i and f(x_i) |- f(y_i)
+        | Strict [Formula s f] --              t_1 = t_2 |- t_1 = t_1 and t_2 = t_2
         ----------------------------------------------------
         | Id [Formula s f]     --           phi |- phi
         | Top [Formula s f]    --           phi |- Top
@@ -132,6 +142,10 @@ proof (Congr lst) = do
                       checkVars (((Var _ _) :== (Var _ _)):xs) = checkVars xs
                       checkVars (x:xs) = Left $ show x ++ " is not a var formula! Congr needs a list of vars before a function"
 
+proof (Strict []) = Left "Strict needs one equality"
+proof (Strict f@[a:==b]) = createSeq f [a:==a, b:==b]
+proof (Strict _) = Left "Strict needs one equality"
+
 ----------------------------------------------------------------------
 proof (Id f) = createSeq f f
 
@@ -164,7 +178,7 @@ proof (Comp a b) = do
     (Seq v1 ll lr) <- proof a
     (Seq v2 rl rr) <- proof b
     vmap <- combine v1 (Right v2)
-    if lr == rl then return $ Seq vmap ll rr -- may add unneeded vars into context
+    if lr == rl then {-return $ Seq vmap-} createSeq ll rr -- may add unneeded vars into context
         else Left $ "Composition doesn't work " ++ show lr ++ " isn't the same as " ++ show rl
 
 proof (IAnd a b) = do 
