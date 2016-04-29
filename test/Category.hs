@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module HorTest where
+module Category where
 
 import qualified Horn as H
 import Term
@@ -161,6 +161,5 @@ ref3 = H.IAnd ref3' ref3''
 
 step4 = symF $ H.Comp ref3 step3_3
 step5 = transF $ H.IAnd step4 step2
-
 
 ---------- step5 == theorem2 "x"

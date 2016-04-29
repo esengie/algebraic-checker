@@ -1,11 +1,15 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators, GADTs #-}
+
 
 module Horn (
     Rule(..),
     Theory(..),
     Sequent,
+    --Sym(..),
+    --Trans(..),
     leftS,
     rightS,
     defFun,
@@ -26,13 +30,15 @@ data Sequent s f = Seq { varNs :: VarNames s,
             rightS :: [Formula s f]}
     deriving (Eq)
 
+type ErrSec s f = Either Err (Sequent s f)
+
 defFun :: Signature s f => Term s f -> Formula s f
 defFun b = b :== b
 
 instance (Signature s f) => Show (Sequent s f) where
     show seq = show (leftS seq) ++ " |- " ++ show (varNs seq) ++ " -- " ++ show (rightS seq)
 
-createSeq :: Signature s f => [Formula s f] -> [Formula s f] -> Either Err (Sequent s f)
+createSeq :: Signature s f => [Formula s f] -> [Formula s f] -> ErrSec s f
 createSeq left right = do
     let lst1 = map varsCheckF left
     let lst2 = map varsCheckF right
@@ -66,13 +72,13 @@ typeCheckSeq seqt = do
                  
 
 class (Show (a s f), Signature s f) => Theory a s f | a -> s f, s f -> a where 
-    axiom :: a s f -> Either Err (Sequent s f)
+    axiom :: a s f -> ErrSec s f
 
 
 data Rule a s f ala
         = Axiom (a s f)
         ----------------------------------------------------
-        | User (ala (Rule a s f ala))
+        | User (Expr ala)
         | Sym [Formula s f]    --                a :== b |- b :== a
         | Trans [Formula s f]  --    a :== b and b :== c |- a :== c
         | Congr [Formula s f]  -- x_i :== y_i and f(x_i) |- f(y_i)
@@ -96,24 +102,51 @@ data Rule a s f ala
 data Empty r
 type IniRules a s f = Rule a s f Empty
 
---data Sym r = Sym r
---data Trans r = Trans r r
+--type STRules a s f = Rule a s f (Sym s f :+: Trans s f)
+
+--data Sym s f r = Sym [Formula s f]
+--data Trans s f r = Trans [Formula s f] 
+
 --data Congr r = Congr r r
 
 --type ExtRules a s f = Rule a s f (Sym :+: Trans :+: Congr)
 
-class UserRules ala where
-    def :: ala (Rule a s f t) -> Rule a s f ala
+--class UserRules ala where
+--    def :: ala (t) -> ErrSec s f
+
+--instance (UserRules f, UserRules g) => UserRules (f :+: g) where
+--    def (Inl f) = def f
+--    def (Inr g) = def g
+
+--instance (Signature s f) => UserRules (Sym s f) where
+--    def (Sym []) = Left "Refl must have one formula not ZERO"
+--    def (Sym [(a :== b)]) = createSeq [(a :== b)] [(b :== a)]
+--    def (Sym _) = Left "Refl must have one formula not MANY"
+
+--instance (Signature s f) => UserRules (Trans s f) where
+--    def (Trans []) = Left "Refl must have two formulas not ZERO"
+--    def (Trans [x]) = Left "Refl must have two formulas not ONE"
+--    def (Trans l@([(a :== b), (b1 :== c)])) = if b == b1
+--        then createSeq l [a :== c]
+--        else Left $ "Trans doesn't work"
+--    def (Trans _) = Left "Refl must have two formulas not MANY"
+
 
 -----------------------------------------------------------------
 
-proof :: (Theory a s f {-, UserRules t -}) => IniRules a s f -> Either Err (Sequent s f)
+proof :: (Theory a s f{-, UserRules t s f-}) => IniRules a s f -> ErrSec s f
 -- This is user defined so checks the correctness of that
 proof (Axiom s) = do
     a <- axiom s
     typeCheckSeq a
     varsCheckS a
     return a
+
+--proof (User t) = do 
+--    a <- fmap def t
+--    typeCheckSeq a
+--    varsCheckS a
+--    return a    
 -------------------------------------------------
 
 proof (Sym []) = Left "Refl must have one formula not ZERO"
