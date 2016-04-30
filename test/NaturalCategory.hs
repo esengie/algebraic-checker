@@ -116,9 +116,20 @@ instance H.Theory Axioms Sort Fun where
 unright (Right g) = g
 
 
+----- stupid example of working Leib with the help of all powerful Idd axiom
 on = H.Axiom $ Idd $ unright $ H.createSeq [dom'(hom "f") :== dom'(hom "g")] $ hom "f" :== hom "g"
 on' = H.Axiom $ Proj1Comp "f" "g"
 one = H.Leib (proj1  (cod'(hom "f"), cod'(hom "g")) *. pairF [hom "f", hom "g"] :== hom "f") "f" on on'
 
+----- stupid example of working Strict with the help of all powerful Idd axiom
 tw = H.Axiom $ Idd $ unright $ H.createSeq [dom'(hom "f") :== dom'(hom "g")] $ (hom "f") *. (hom "g") :== (hom "f") *. (hom "g")
 two = H.Strict 1 tw
+
+----- stupid example of working SubstAx with the help of all powerful Idd axiom
+three = H.SubstAx (TopEq "f" "g") [ff(dom' (hom "g") :== dom' (hom "f")),
+    ff(cod' (hom "g") :== top), ff(cod' (hom "f") :== top)] [hom "g", hom "f"]
+three' = H.Axiom (TopEq "f" "g")
+
+ff s = H.Axiom $ Idd $ unright $ H.createSeq [] s
+
+------------------------------------------------------------------------------------------

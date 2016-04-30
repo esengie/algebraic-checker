@@ -20,6 +20,7 @@ import Control.Monad(foldM)
 import Data.List(tail, init)
 import LaCarte
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Term
 
@@ -83,7 +84,7 @@ data Rule a s f ala
         | Select Int [Formula s f]          --        phi and psi |- phi
         | Leib (Formula s f) Name (Rule a s f ala) (Rule a s f ala)  -- x = y and phi[x/z] |- phi[y/z]
         | Strict Int (Rule a s f ala)          --    F(t_1) = F(t_1) |- t_1 = t_1
-        
+        -- Due to definition give variables in sorted order
         | SubstAx (a s f) [Rule a s f ala] [Term s f] --   axiom plus subst
 -----------------------------------------------------------------
 
@@ -154,26 +155,67 @@ proof (Strict n pr) = do
                     | otherwise = Left $ "Not a fundef in Strict"
               check _ _ = Left $ "Not a fundef in Strict"
 
+proof (SubstAx ax proofs terms) = do
+    axiP@(Seq vsSeq leftAx rightAx) <- proof (Axiom ax)
+    -- Get all proofs
+    proofLst <- mapM proof proofs
 
----- | SubstAx (a s f) [Sequent s f] [Term s f] --   axiom plus subst
+    -- typeCheck terms
+    sortTerms <- mapM typeCheckTerm terms
 
---proof (SubstAx ax seqs terms) = do
---    sq@(Seq vsSeq l r) <- proof (Axiom ax)
---    -- Just to check
---    (Seq llVars _ _) <- createSeq l []
---    check nam llVars sq
---    -------------------
---    sortTerm <- typeCheckTerm term
---    let vsT = varsTerm term
---    allVs <- combine vsT (Right vsSeq) -- to check compatibility
---    l' <- sequence $ map (substIntoF nam sortTerm term) l
---    r' <- sequence $ map (substIntoF nam sortTerm term) r
---    return $ Seq allVs l' r'
---        where check nam mp sq = if Map.member nam mp
---                then Right ()
---                else Left $ "Subst " ++ nam ++ " is not a free var on the left side of " 
---                    ++ show sq
+    -- rename all the stuff in axioms to impose independency of substitution
+    let mangled_l = Set.fromList $ map fst $ Map.toList vsSeq
+    let leftAx' = map (mangleFla mangled_l) leftAx
+    let vsSeq' = mangleVars mangled_l vsSeq
 
+    -- subst into axiom and check equality
+    let namesAndtermsAndTypes = zip3 (map fst $ Map.toList vsSeq') sortTerms terms
+    leftSide <- mapM (\x -> foldM (substHelper vsSeq') x namesAndtermsAndTypes) leftAx'
+    leftCheck leftSide (map rightS proofLst)
 
+    -- check contexts equality
+    ctx <- contCheck $ map leftS proofLst
+    
+    -- subst into vars to the left of |- in an axiom
+    -- this if is a semihack to use createSeq
+    if leftAx == [] then createSeq ctx rightAx
+        else do 
+            (Seq llVars _ _) <- createSeq leftAx $ leftAx!!0
+            -------------- Clutter 
+            let mangled_r = Set.fromList $ map fst $ Map.toList llVars
+            let m_llVars = mangleVars mangled_r llVars
+            let vsSeq'' = mangleVars mangled_r vsSeq
+            ------------------------
+            let namesAndtermsAndTypes2 = filter (\(n,s,t) -> Map.member n m_llVars) namesAndtermsAndTypes
+            res <- foldM (substHelper vsSeq'') (mangleFla mangled_r rightAx) namesAndtermsAndTypes2
+            createSeq ctx res
 
+    where
+        leftCheck lsAx lsSeq  = if lsAx == lsSeq then return () else Left $ "Precondition doesn't match subst into axiom: \n"
+            ++ show lsAx ++ "\n" ++ show lsSeq
+        contCheck [] = return []
+        contCheck ctxs = foldM (\a b -> if a == b then return b else Left $ "Contexts differ") (ctxs !! 0) ctxs
+
+    
+mangle :: Set.Set Name -> Name -> Name
+mangle st v | Set.member v st = "'''" ++ v ++ "'''"
+         | otherwise = v
+
+mangleFla :: Signature s f => Set.Set Name -> Formula s f -> Formula s f
+mangleFla st (a :== b) = mangleTerm st a :== mangleTerm st b
+
+mangleTerm :: Signature s f => Set.Set Name -> Term s f -> Term s f
+mangleTerm st v@(Var n s) = Var (mangle st n) s
+mangleTerm st (FunApp f lst) = FunApp f $ map (mangleTerm st) lst
+
+mangleVars :: Signature s f => Set.Set Name -> VarNames s -> VarNames s
+mangleVars st vsSeq = Map.fromList $ map (\(a,b) -> (mangle st a, b)) (Map.toList vsSeq)
+
+substHelper :: Signature s f => VarNames s -> Formula s f -> (Name, s, Term s f) -> Either Err (Formula s f)
+substHelper vsSeq fla (nam, sortTerm, term) =  do
+    let vsT = varsTerm term
+    allVs <- combine vsT (Right vsSeq) -- to check compatibility
+    substIntoF nam sortTerm term fla
+    
+    
                     
