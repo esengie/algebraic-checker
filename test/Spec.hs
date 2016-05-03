@@ -16,4 +16,7 @@ catTest2 = TestCase $ assertBool "Strict" $ not.isLeft $ H.proof NatCat.two
 catTest3 :: Test
 catTest3 = TestCase $ assertBool "SubstAx" $ not.isLeft $ H.proof NatCat.three
 
-main = runTestTT $ TestList [algTest, tTest, hTest1, hTest2, catTest1, catTest2, catTest3]
+catTest4 :: Test
+catTest4 = TestCase $ assertBool "Theorem id in cat theory" $ H.proof NatCat.st2 == NatCat.theorem2 "x"
+
+main = runTestTT $ TestList [algTest, tTest, hTest1, hTest2, catTest1, catTest2, catTest3, catTest4]

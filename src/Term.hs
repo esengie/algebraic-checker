@@ -11,6 +11,10 @@ module Term (
     combine,
     emptyVNS,
     fromListVNS,
+    mangle,
+    mangleFla,
+    mangleTerm,
+    mangleVars,
     subst,
     substIntoF,
     typeCheckTerm,
@@ -27,6 +31,7 @@ module Term (
 import Control.Monad(foldM)
 import Data.List(intercalate)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 class (Eq s, Show s, Eq f, Show f) => Signature s f | f -> s, s -> f where
     dom :: f -> [s]
@@ -151,3 +156,18 @@ substIntoF name sort t (a :== b) = do
     l <- (subst a name sort t)
     r <- (subst b name sort t)
     return $ l :== r
+
+
+mangle :: Set.Set Name -> Name -> Name
+mangle st v | Set.member v st = "'''" ++ v ++ "'''"
+         | otherwise = v
+
+mangleFla :: Signature s f => Set.Set Name -> Formula s f -> Formula s f
+mangleFla st (a :== b) = mangleTerm st a :== mangleTerm st b
+
+mangleTerm :: Signature s f => Set.Set Name -> Term s f -> Term s f
+mangleTerm st v@(Var n s) = Var (mangle st n) s
+mangleTerm st (FunApp f lst) = FunApp f $ map (mangleTerm st) lst
+
+mangleVars :: Signature s f => Set.Set Name -> VarNames s -> VarNames s
+mangleVars st vsSeq = Map.fromList $ map (\(a,b) -> (mangle st a, b)) (Map.toList vsSeq)

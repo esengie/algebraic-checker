@@ -86,6 +86,9 @@ data Rule a s f ala
         | Strict Int (Rule a s f ala)          --    F(t_1) = F(t_1) |- t_1 = t_1
         -- Due to definition give variables in sorted order
         | SubstAx (a s f) [Rule a s f ala] [Term s f] --   axiom plus subst
+
+        -- adding trans here so that later we could define elsewhere a la carte
+        | Trans (Rule a s f ala) (Rule a s f ala)
 -----------------------------------------------------------------
 
 data Empty r
@@ -117,6 +120,15 @@ proof (Sym rl) = do
     (Seq vs x (a :== b)) <- proof rl
     return $ Seq vs x (b :== a)
 
+proof (Trans rl rr) = do
+    (Seq vs1 x1 (a :== c1)) <- proof rl
+    (Seq vs2 x2 (c2 :== b)) <- proof rr
+    check x1 x2
+    if c1 == c2 then createSeq x1 (a :== b)
+        else Left $ "Trans doesn't apply " ++ show c1 ++ " and " ++ show c2
+            where check x1 x2 | x1 == x2 = Right ()
+                              | otherwise = Left $ "Contexts in trans must be the same: " ++ show x1 ++ " and " ++ show x2
+
 proof (Select n flas) = do
     checkListLength n flas
     createSeq flas (flas !! (n-1))
@@ -143,7 +155,7 @@ proof (Leib (tL :== tR) v pIn pProof) = do
     retR <- subst tR v s2 t2
     if check == check2
         then createSeq cont1 (retL :== retR)
-        else Left "Incorrect substitution for Left side"
+        else Left $ "Incorrect substitution for Left side, need " ++ show check ++ " but have " ++ show check2
 
 proof (Strict n pr) = do
     (Seq vs cont1 (t1 :== t2)) <- proof pr
@@ -197,19 +209,6 @@ proof (SubstAx ax proofs terms) = do
         contCheck ctxs = foldM (\a b -> if a == b then return b else Left $ "Contexts differ") (ctxs !! 0) ctxs
 
     
-mangle :: Set.Set Name -> Name -> Name
-mangle st v | Set.member v st = "'''" ++ v ++ "'''"
-         | otherwise = v
-
-mangleFla :: Signature s f => Set.Set Name -> Formula s f -> Formula s f
-mangleFla st (a :== b) = mangleTerm st a :== mangleTerm st b
-
-mangleTerm :: Signature s f => Set.Set Name -> Term s f -> Term s f
-mangleTerm st v@(Var n s) = Var (mangle st n) s
-mangleTerm st (FunApp f lst) = FunApp f $ map (mangleTerm st) lst
-
-mangleVars :: Signature s f => Set.Set Name -> VarNames s -> VarNames s
-mangleVars st vsSeq = Map.fromList $ map (\(a,b) -> (mangle st a, b)) (Map.toList vsSeq)
 
 substHelper :: Signature s f => VarNames s -> Formula s f -> (Name, s, Term s f) -> Either Err (Formula s f)
 substHelper vsSeq fla (nam, sortTerm, term) =  do

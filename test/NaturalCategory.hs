@@ -133,3 +133,31 @@ three' = H.Axiom (TopEq "f" "g")
 ff s = H.Axiom $ Idd $ unright $ H.createSeq [] s
 
 ------------------------------------------------------------------------------------------
+
+theorem1 x = H.createSeq [] $ pairF [excl(obj x), id'(obj x)] *. proj2 (top, obj x) :== id'(pair(top, obj x))
+theorem2 x = H.createSeq [] $ proj2 (top, obj x) *. pairF [excl(obj x), id'(obj x)] :== id'(obj x)
+
+-- So we have this, let's subst: g := id x, f:= !x
+start' = H.Axiom $ Proj2Comp "f" "g" 
+
+-- dom (id x) == dom (!x)
+domId = H.Axiom $ DomId "x"
+domE = H.Sym $ H.Axiom $ DomExcl "x"
+prIdExcl = H.Sym $ H.Trans domId domE
+
+-- P2(cod(id x), cod(!x)) *. [id x, !x] = !x
+start = H.SubstAx (Proj2Comp "f" "g") [prIdExcl] [excl (obj "x"), id' (obj "x")]
+
+-- cod(!x) = Top and cod(id x) = x
+codE = H.Axiom $ CodExcl "x"
+codId = H.Axiom $ CodId "x"
+
+-- So let's leibnitz it in
+l_fla1 = proj2  (obj "l", cod' (id' (obj "x"))) *. pairF [excl (obj "x"), id' (obj "x")] :== id' (obj "x")
+l_fla2 = proj2  (top , obj "l") *. pairF [excl (obj "x"), id' (obj "x")] :== id' (obj "x")
+
+-- We do that in two steps
+st1 = H.Leib l_fla1 "l" codE start 
+st2 = H.Leib l_fla2 "l" codId st1 
+
+-- H.proof st2 == theorem2 "x"
