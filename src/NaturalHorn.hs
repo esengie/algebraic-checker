@@ -5,6 +5,7 @@
 
 
 module NaturalHorn (
+    IniRules(..),
     Rule(..),
     Theory(..),
     Sequent,
@@ -17,7 +18,7 @@ module NaturalHorn (
     where
 
 import Control.Monad(foldM)
-import Data.List(tail, init)
+import Data.List(tail, init, intersperse)
 import LaCarte
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -72,6 +73,7 @@ typeCheckSeq seqt = do
 
 class (Show (a s f), Signature s f) => Theory a s f | a -> s f, s f -> a where 
     axiom :: a s f -> ErrSec s f
+    name :: a s f -> Name
 
 
 data Rule a s f ala
@@ -89,6 +91,27 @@ data Rule a s f ala
 
         -- adding trans here so that later we could define elsewhere a la carte
         | Trans (Rule a s f ala) (Rule a s f ala)
+
+instance Theory a s f => Show (IniRules a s f) where
+    show (Axiom ax) = name ax
+    show (User s) = "User"
+    show (Refl ctx vm) = let (a, b) = Map.elemAt 0 vm
+        in "refl(" ++ a ++ ")"
+    show (Sym r) = "sym(" ++ show r ++ ")"
+    show (Select n lst) = show lst ++ " |-- " ++ show (lst!!(n-1))
+    show (Leib phi x p q) = "leib(" ++ cip ["X := " ++ x, "PHI := " ++ show phi, "EQ := " ++ show p, "PROOF := " ++ show q]
+        where cip lst = concat $ intersperse ", " lst
+    show (Strict n p) = foldl1 (++) ["sf_", (unright $ getFunName p), ", ", show n, "(", show p, ")"]
+        where getFunName p = do 
+                (Seq _ _ ((FunApp f _) :== _)) <- proof p
+                return $ show f
+    show (SubstAx ax ups terms) = name ax ++ "(" ++ cip (map show terms) ++ "; " ++ cip(map show ups) ++ ")"
+        where cip lst = concat $ intersperse ", " lst
+    show (Trans l r) = "trans(" ++ show l ++ ", " ++ show r ++ ")"
+        
+
+unright (Right s) = s 
+unright (Left s) = error "@@@You should proofcheck before showing@@@"
 -----------------------------------------------------------------
 
 data Empty r

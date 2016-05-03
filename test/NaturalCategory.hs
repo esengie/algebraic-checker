@@ -113,6 +113,29 @@ instance H.Theory Axioms Sort Fun where
 
     axiom (Idd g) = Right g
 
+    name (DotUse f g) = "DotUse_" ++ f ++ "_" ++ g
+    name (LeftId f) = "LeftId_" ++ f
+    name (RightId f) = "RightId_" ++ f
+    name (DotAssoc f g h) = "DotAssoc_" ++ f ++ "_" ++ g ++ "_" ++ h
+    name (DomId x) = "DomId_" ++ x
+    name (CodId x) = "CodId_" ++ x
+    name (DomDot f g) = "DomDot_" ++ f ++ "_" ++ g
+    name (CodDot f g) = "CodDot_" ++ f ++ "_" ++ g
+    name (DomExcl x) = "DomExcl_" ++ x
+    name (CodExcl x) = "CodExcl_" ++ x
+    name (TopEq f g) = "TopEq_" ++ f ++ "_" ++ g
+    name (DomProj1 x y) = "DomProj1_" ++ x ++ "_" ++ y
+    name (DomProj2 x y) = "DomProj2_" ++ x ++ "_" ++ y
+    name (CodProj1 x y) = "CodProj1_" ++ x ++ "_" ++ y
+    name (CodProj2 x y) = "CodProj2_" ++ x ++ "_" ++ y
+    name (DefPaHomTo f g) = "DefPaHomTo_" ++ f ++ "_" ++ g
+    name (DefPaHomFrom f g) = "DefPaHomFrom_" ++ f ++ "_" ++ g
+    name (Proj1Comp f g) = "Proj1Comp_" ++ f ++ "_" ++ g
+    name (Proj2Comp f g) = "Proj2Comp_" ++ f ++ "_" ++ g
+    name (H1H2 f g h1 h2) = "H1H2_" ++ f ++ "_" ++ g ++ "_" ++ h1 ++ "_" ++ h2
+
+    name (Idd g) = "Error"
+
 unright (Right g) = g
 
 
