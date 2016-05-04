@@ -161,18 +161,25 @@ theorem1 x = H.createSeq [] $ pairF [excl(obj x), id'(obj x)] *. proj2 (top, obj
 theorem2 x = H.createSeq [] $ proj2 (top, obj x) *. pairF [excl(obj x), id'(obj x)] :== id'(obj x)
 
 -- So we have this, let's subst: g := id x, f:= !x
+start' :: H.IniRules Axioms Sort Fun
 start' = H.Axiom $ Proj2Comp "f" "g" 
 
 -- dom (id x) == dom (!x)
+domId :: H.IniRules Axioms Sort Fun
 domId = H.Axiom $ DomId "x"
+domE :: H.IniRules Axioms Sort Fun
 domE = H.Sym $ H.Axiom $ DomExcl "x"
+prIdExcl :: H.IniRules Axioms Sort Fun
 prIdExcl = H.Sym $ H.Trans domId domE
 
 -- P2(cod(id x), cod(!x)) *. [id x, !x] = !x
+start :: H.IniRules Axioms Sort Fun
 start = H.SubstAx (Proj2Comp "f" "g") [prIdExcl] [excl (obj "x"), id' (obj "x")]
 
 -- cod(!x) = Top and cod(id x) = x
+codE :: H.IniRules Axioms Sort Fun
 codE = H.Axiom $ CodExcl "x"
+codId :: H.IniRules Axioms Sort Fun
 codId = H.Axiom $ CodId "x"
 
 -- So let's leibnitz it in
@@ -180,7 +187,9 @@ l_fla1 = proj2  (obj "l", cod' (id' (obj "x"))) *. pairF [excl (obj "x"), id' (o
 l_fla2 = proj2  (top , obj "l") *. pairF [excl (obj "x"), id' (obj "x")] :== id' (obj "x")
 
 -- We do that in two steps
+st1 :: H.IniRules Axioms Sort Fun
 st1 = H.Leib l_fla1 "l" codE start 
+st2 :: H.IniRules Axioms Sort Fun
 st2 = H.Leib l_fla2 "l" codId st1 
 
 -- H.proof st2 == theorem2 "x"

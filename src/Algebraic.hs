@@ -10,8 +10,6 @@ module Algebraic (
     )
     where
 
-import Text.PrettyPrint
-
 import Term
 
 data Rule a s f = Axiom a 

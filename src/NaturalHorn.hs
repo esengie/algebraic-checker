@@ -20,6 +20,7 @@ module NaturalHorn (
 import Control.Monad(foldM)
 import Data.List(tail, init, intersperse)
 import LaCarte
+import Text.PrettyPrint.Leijen
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -93,26 +94,30 @@ data Rule a s f ala
         | Trans (Rule a s f ala) (Rule a s f ala)
 
 instance Theory a s f => Show (IniRules a s f) where
-    show (Axiom ax) = name ax
-    show (User s) = "User"
-    show (Refl ctx vm) = let (a, b) = Map.elemAt 0 vm
-        in "refl(" ++ a ++ ")"
-    show (Sym r) = "sym(" ++ show r ++ ")"
-    show (Select n lst) = show lst ++ " |-- " ++ show (lst!!(n-1))
-    show (Leib phi x p q) = "leib(" ++ cip ["X := " ++ x, "PHI := " ++ show phi, "EQ := " ++ show p, "PROOF := " ++ show q]
-        where cip lst = concat $ intersperse ", " lst
-    show (Strict n p) = foldl1 (++) ["sf_", (unright $ getFunName p), ", ", show n, "(", show p, ")"]
+    show a = show (pretty a)
+
+instance Theory a s f => Pretty (IniRules a s f) where
+    pretty (Axiom ax) = text $ name ax
+    pretty (User s) = text "User"
+    pretty (Refl ctx vm) = let (a, b) = Map.elemAt 0 vm
+        in text "refl" <> parens (text a)
+    pretty (Sym r) = text "sym" <> parens (pretty r)
+    pretty (Select n lst) = text "select" <> parens (int n)  --hcat (map (string.show) lst) </> string " |-- " </> string (show $ lst!!(n-1))
+    pretty (Leib phi x p q) = text "leib" <> braces (indent 0 $ cip id [text ("\\" ++ x), (text.show) phi, pretty p, pretty q])
+    pretty (Strict n p) = text "sf_" <> cip (text.show) [(unright $ getFunName p), show n] <> parens (pretty p)
         where getFunName p = do 
                 (Seq _ _ ((FunApp f _) :== _)) <- proof p
                 return $ show f
-    show (SubstAx ax ups terms) = name ax ++ "(" ++ cip (map show terms) ++ "; " ++ cip(map show ups) ++ ")"
-        where cip lst = concat $ intersperse ", " lst
-    show (Trans l r) = "trans(" ++ show l ++ ", " ++ show r ++ ")"
-        
+    pretty (SubstAx ax ups terms) = text (name ax) <> brackets (indent 0 (cip (text.show) terms <> semi </> cip pretty ups))
+    pretty (Trans l r) = text "trans" <> parens (pretty l <> comma <+> pretty r)
+
+cip :: (a -> Doc) -> [a] -> Doc
+cip f lst = cat (punctuate (comma <> space) (map f lst))
 
 unright (Right s) = s 
-unright (Left s) = error "@@@You should proofcheck before showing@@@"
------------------------------------------------------------------
+unright (Left s) = error "@@@You should proofcheck before showing/prettyprinting@@@"
+
+-------------------------------------------------------------------
 
 data Empty r
 type IniRules a s f = Rule a s f Empty
