@@ -1,9 +1,10 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
-
--- Written by Ryan Ingram
--- https://mail.haskell.org/pipermail/haskell-cafe/2008-February/040098.html
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
@@ -12,6 +13,8 @@ module LaCarte (
     (:+:)(..),
     (:<:)(..),
     foldExpr,
+    inj,
+    prj,
     )
     where
 
@@ -29,10 +32,10 @@ instance (Functor f, Functor g) => Functor (f :+: g) where
    fmap h (Inl f) = Inl (fmap h f)
    fmap h (Inr g) = Inr (fmap h g)
 
-class (Functor sub, Functor sup) => (:<:) sub sup where
-   inj :: sub a -> sup a
+--class (Functor sub, Functor sup) => (:<:) sub sup where
+--   inj :: sub a -> sup a
 
-instance TypTree sub sup => (:<:) sub sup where inj = treeInj
+--instance TypTree sub sup => (:<:) sub sup where inj = treeInj
 
 foldExpr :: Functor f => (f a -> a) -> Expr f -> a
 foldExpr f (In t) = f (fmap (foldExpr f) t)
@@ -88,70 +91,45 @@ test4 :: Expr (Add :+: (Val :+: Mul))
 test4 = add (mul (val 1) (val 2)) (val 3)
 
 -- our typtree selection prefers left injection
-test5 :: Expr ((Val :+: Val) :+: (Val :+: Val))
-test5 = val 1
+--test5 :: Expr ((Val :+: Val) :+: (Val :+: Val))
+--test5 = val 1
 
---
--- TypTree.  This is basically the same as (:<:).
--- I kept it a separate class during development.  This also allows the use of
--- additional constraints on (:<:) which improve the error messages
--- when you try,
--- for example:
---   testBroken :: Expr (Mul :+: Add)
---   testBroken = val 3
---
-class (Functor sub, Functor sup) => TypTree sub sup where
-    treeInj :: sub a -> sup a
-instance Functor x => TypTree x x where
-    treeInj = id
+data Pos = Here | Le Pos | Ri Pos
+data Res = Found Pos | NotFound | Ambiguous
 
---
--- The magic all happens here
--- We use "IsTreeMember" to determine if a type is part of a tree with leaves
--- of various types and internal nodes of type (l :+: r).
---
-class IsTreeMember (sub :: * -> *) (sup :: * -> *) b | sub sup -> b
+type family Elem (e :: * -> *) (p :: * -> *) :: Res where
+    Elem e e = Found Here
+    Elem e (l :+: r ) = Choose (Elem e l ) (Elem e r )
+    Elem e p = NotFound
 
-instance TypEq x y b => IsTreeMember x y b
-instance (IsTreeMember x l bl, IsTreeMember x r br, TypOr bl br b) =>
-    IsTreeMember x (l :+: r) b
+type family Choose (l :: Res) (r :: Res) :: Res where
+    Choose (Found x ) (Found y) = Ambiguous
+    Choose Ambiguous y = Ambiguous
+    Choose x Ambiguous = Ambiguous
+    Choose (Found x) y = Found (Le x )
+    Choose x (Found y)= Found (Ri y)
+    Choose x y = NotFound
 
-class (Functor sub, Functor l, Functor r) => TypTree' b sub l r where
-    treeInj' :: b -> sub a -> (l :+: r) a
+data Proxy a = P
+class Subsume (res :: Res) f g where
+    inj' :: Proxy res -> f a -> g a
+    prj' :: Proxy res -> g a -> Maybe (f a)
 
---
--- We can then use this result to decide whether to select from the
--- left or the right.
---
-instance (TypTree x l, Functor r) => TypTree' HTrue x l r where
-    treeInj' _ = Inl . treeInj
-instance (TypTree x r, Functor l) => TypTree' HFalse x l r where
-    treeInj' _ = Inr . treeInj
+instance Subsume (Found Here) f f where
+    inj' _ = id
+    prj' _ = Just
+instance Subsume (Found p) f l => Subsume (Found (Le p)) f (l :+: r ) where
+    inj' _ = Inl . inj' (P :: Proxy (Found p))
+    prj' _ (Inl x ) = prj' (P :: Proxy (Found p)) x
+    prj' _ (Inr _) = Nothing
+instance Subsume (Found p) f r => Subsume (Found (Ri p)) f (l :+: r ) where
+    inj' _ = Inr . inj' (P :: Proxy (Found p))
+    prj' _ (Inr x ) = prj' (P :: Proxy (Found p)) x
+    prj' _ (Inl _) = Nothing
 
---
--- Finally, this allows us to select which treeInj' to use based on the
--- type passed in.
--- 
-instance (IsTreeMember x l b, TypTree' b x l r) => TypTree x (l :+: r) where
-    treeInj = treeInj' (undefined :: b)
+type f :<: g = Subsume (Elem f g) f g
 
-class TypOr b1 b2 res | b1 b2 -> res
-instance TypOr HFalse HFalse HFalse
-instance TypOr HFalse HTrue  HTrue
-instance TypOr HTrue  HFalse HTrue
-instance TypOr HTrue  HTrue  HTrue
-
--- Type equality, semi-lifted from the hlist paper; this only works in GHC.
---
--- You can avoid the reliance on GHC6.8 type equality constraints
--- by using TypeCast from the HList library instead.
---
--- see http://www.okmij.org/ftp/Haskell/types.html#HList
--- for the source of this idea.
-
-data HFalse
-data HTrue
-
-class TypEq (x :: * -> *) (y :: * -> *) b | x y -> b
-instance TypEq x x HTrue
-instance (b ~ HFalse) => TypEq x y b
+inj :: forall f g a. (f :<: g) => f a -> g a
+inj = inj' (P :: Proxy (Elem f g))
+prj :: forall f g a. (f :<: g) => g a -> Maybe (f a)
+prj = prj' (P :: Proxy (Elem f g))

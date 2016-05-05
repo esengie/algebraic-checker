@@ -4,26 +4,27 @@
 {-# LANGUAGE TypeOperators, GADTs #-}
 
 
-module NaturalHorn (
+module NaturalHorn {-(
     IniRules(..),
     Rule(..),
     Theory(..),
-    Sequent,
+    Sequent(..),
     leftS,
     rightS,
     defFun,
     createSeq,
     proof,
-    )
+    )-}
     where
 
 import Control.Monad(foldM)
 import Data.List(tail, init, intersperse)
-import LaCarte
 import Text.PrettyPrint.Leijen
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import LaCarte
 import Term
 
 data Sequent s f = Seq { varNs :: VarNames s,

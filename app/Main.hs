@@ -3,7 +3,9 @@
 module Main where
 
 import Term
-import Horn
+import NaturalHorn
+import LaCarte
+import Nn
 
 main :: IO ()
 main = putStrLn "asd"

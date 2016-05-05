@@ -1,9 +1,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators #-}
 
 module NaturalCategory where
 
 import qualified NaturalHorn as H
+import Nn as N
 import Term
+import LaCarte
 
 data Sort = O | H
     deriving (Show, Eq)
@@ -164,11 +167,14 @@ theorem2 x = H.createSeq [] $ proj2 (top, obj x) *. pairF [excl(obj x), id'(obj 
 start' :: H.IniRules Axioms Sort Fun
 start' = H.Axiom $ Proj2Comp "f" "g" 
 
+start'' :: H.IniRules Axioms Sort Fun
+start'' = H.SubstAx (Proj2Comp "f" "g") [H.Select 1 [dom' (hom "f") :== dom' (hom "g")]] [hom "f", hom "g"] -- <-- ugly?
+
 -- dom (id x) == dom (!x)
 domId :: H.IniRules Axioms Sort Fun
-domId = H.Axiom $ DomId "x"
+domId = H.SubstAx (DomId "x") [] []
 domE :: H.IniRules Axioms Sort Fun
-domE = H.Sym $ H.Axiom $ DomExcl "x"
+domE = H.Sym $ H.SubstAx (DomExcl "x") [] []
 prIdExcl :: H.IniRules Axioms Sort Fun
 prIdExcl = H.Sym $ H.Trans domId domE
 
@@ -192,4 +198,12 @@ st1 = H.Leib l_fla1 "l" codE start
 st2 :: H.IniRules Axioms Sort Fun
 st2 = H.Leib l_fla2 "l" codId st1 
 
--- H.proof st2 == theorem2 "x"
+-------------------------------------------------------------------------------------
+star' :: N.Rule Axioms Sort Fun ala
+star' = N.Axiom $ Proj2Comp "f" "g" 
+
+tw' = In $ N.Axiom $ Idd $ unright $ H.createSeq [dom'(hom "f") :== dom'(hom "g")] $ (hom "f") *. (hom "g") :== (hom "f") *. (hom "g")
+two' = In $ N.Strict 1 tw'
+
+axim :: ((N.Rule Axioms Sort Fun) :<: e) => Expr e -> Expr e -> Expr e
+axim ax = In $ inj $ N.Axiom ax
