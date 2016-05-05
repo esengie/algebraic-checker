@@ -26,14 +26,11 @@ instance Show (f (Expr f)) => Show (Expr f) where
 out :: Expr f -> f (Expr f)
 out (In x) = x
 
-data (f :+: g) e = Inl (f e) | Inr (g e) deriving Show
+data (f2 :+: g) a s f e = Inl (f2 a s f e) | Inr (g a s f e) deriving Show
 
-instance (Functor f, Functor g) => Functor (f :+: g) where
+instance (Functor (f2 a s f), Functor (g a s f)) => Functor ((f2 :+: g) a s f) where
    fmap h (Inl f) = Inl (fmap h f)
    fmap h (Inr g) = Inr (fmap h g)
-
---class (Functor sub, Functor sup) => (:<:) sub sup where
---   inj :: sub a -> sup a
 
 --instance TypTree sub sup => (:<:) sub sup where inj = treeInj
 
@@ -41,54 +38,54 @@ foldExpr :: Functor f => (f a -> a) -> Expr f -> a
 foldExpr f (In t) = f (fmap (foldExpr f) t)
 
 
-data Val e = Val Int deriving Show
-data Add e = Add e e deriving Show
-data Mul e = Mul e e deriving Show
+--data Val e = Val Int deriving Show
+--data Add e = Add e e deriving Show
+--data Mul e = Mul e e deriving Show
 
-instance Functor Val where
-    fmap f (Val x) = Val x
-instance Functor Add where
-    fmap f (Add l r) = Add (f l) (f r)
-instance Functor Mul where
-    fmap f (Mul l r) = Mul (f l) (f r)
+--instance Functor Val where
+--    fmap f (Val x) = Val x
+--instance Functor Add where
+--    fmap f (Add l r) = Add (f l) (f r)
+--instance Functor Mul where
+--    fmap f (Mul l r) = Mul (f l) (f r)
 
-class Functor f => Eval f where
-    evalA :: f Int -> Int
+--class Functor f => Eval f where
+--    evalA :: f Int -> Int
 
-instance Eval Val where
-    evalA (Val x) = x
-instance Eval Add where
-    evalA (Add x y) = x + y
-instance Eval Mul where
-    evalA (Mul x y) = x * y
+--instance Eval Val where
+--    evalA (Val x) = x
+--instance Eval Add where
+--    evalA (Add x y) = x + y
+--instance Eval Mul where
+--    evalA (Mul x y) = x * y
 
-instance (Eval f, Eval g) => Eval (f :+: g) where
-    evalA (Inl f) = evalA f
-    evalA (Inr g) = evalA g
+--instance (Eval f, Eval g) => Eval (f :+: g) where
+--    evalA (Inl f) = evalA f
+--    evalA (Inr g) = evalA g
 
-eval :: Eval f => Expr f -> Int
-eval expr = foldExpr evalA expr
+--eval :: Eval f => Expr f -> Int
+--eval expr = foldExpr evalA expr
 
-val :: (Val :<: e) => Int -> Expr e
-val x = In $ inj $ Val x
+--val :: (Val :<: e) => Int -> Expr e
+--val x = In $ inj $ Val x
 
-add :: (Add :<: e) => Expr e -> Expr e -> Expr e
-add x y = In $ inj $ Add x y
+--add :: (Add :<: e) => Expr e -> Expr e -> Expr e
+--add x y = In $ inj $ Add x y
 
-mul :: (Mul :<: e) => Expr e -> Expr e -> Expr e
-mul x y = In $ inj $ Mul x y
+--mul :: (Mul :<: e) => Expr e -> Expr e -> Expr e
+--mul x y = In $ inj $ Mul x y
 
-test :: Expr (Val :+: Add)
-test = In (Inr (Add (val 118) (val 1219)))
+--test :: Expr (Val :+: Add)
+--test = In (Inr (Add (val 118) (val 1219)))
 
-test2 :: Expr (Add :+: Val)
-test2 = val 1
+--test2 :: Expr (Add :+: Val)
+--test2 = val 1
 
-test3 :: Expr ((Add :+: Val) :+: Mul)
-test3 = add (mul (val 1) (val 2)) (val 3)
+--test3 :: Expr ((Add :+: Val) :+: Mul)
+--test3 = add (mul (val 1) (val 2)) (val 3)
 
-test4 :: Expr (Add :+: (Val :+: Mul))
-test4 = add (mul (val 1) (val 2)) (val 3)
+--test4 :: Expr (Add :+: (Val :+: Mul))
+--test4 = add (mul (val 1) (val 2)) (val 3)
 
 -- our typtree selection prefers left injection
 --test5 :: Expr ((Val :+: Val) :+: (Val :+: Val))
@@ -97,9 +94,9 @@ test4 = add (mul (val 1) (val 2)) (val 3)
 data Pos = Here | Le Pos | Ri Pos
 data Res = Found Pos | NotFound | Ambiguous
 
-type family Elem (e :: * -> *) (p :: * -> *) :: Res where
+type family Elem (e :: (* -> * -> *) -> * -> * -> * -> *) (p :: (* -> * -> *) -> * -> * -> * -> * ) :: Res where
     Elem e e = Found Here
-    Elem e (l :+: r ) = Choose (Elem e l ) (Elem e r )
+    Elem e (l :+: r) = Choose (Elem e l ) (Elem e r )
     Elem e p = NotFound
 
 type family Choose (l :: Res) (r :: Res) :: Res where
@@ -111,25 +108,25 @@ type family Choose (l :: Res) (r :: Res) :: Res where
     Choose x y = NotFound
 
 data Proxy a = P
-class Subsume (res :: Res) f g where
-    inj' :: Proxy res -> f a -> g a
-    prj' :: Proxy res -> g a -> Maybe (f a)
+class Subsume (res :: Res) f2 g a s f where
+    inj' :: Proxy res -> f2 a s f a' -> g a s f a'
+    prj' :: Proxy res -> g a s f a' -> Maybe (f2 a s f a')
 
-instance Subsume (Found Here) f f where
+instance Subsume (Found Here) f2 f2 a s f where
     inj' _ = id
     prj' _ = Just
-instance Subsume (Found p) f l => Subsume (Found (Le p)) f (l :+: r ) where
+instance Subsume (Found p) f2 l a s f => Subsume (Found (Le p)) f2 (l :+: r ) a s f where
     inj' _ = Inl . inj' (P :: Proxy (Found p))
     prj' _ (Inl x ) = prj' (P :: Proxy (Found p)) x
     prj' _ (Inr _) = Nothing
-instance Subsume (Found p) f r => Subsume (Found (Ri p)) f (l :+: r ) where
+instance Subsume (Found p) f2 r a s f => Subsume (Found (Ri p)) f2 (l :+: r ) a s f where
     inj' _ = Inr . inj' (P :: Proxy (Found p))
     prj' _ (Inr x ) = prj' (P :: Proxy (Found p)) x
     prj' _ (Inl _) = Nothing
 
-type f :<: g = Subsume (Elem f g) f g
+type (f2 :<: g) a s f = Subsume (Elem (f2) (g)) f2 g a s f
 
-inj :: forall f g a. (f :<: g) => f a -> g a
-inj = inj' (P :: Proxy (Elem f g))
-prj :: forall f g a. (f :<: g) => g a -> Maybe (f a)
-prj = prj' (P :: Proxy (Elem f g))
+inj :: forall f2 g a s f e. (f2 :<: g) a s f => f2 a s f e -> g a s f e
+inj = inj' (P :: Proxy (Elem f2 g))
+prj :: forall f2 g a s f e. (f2 :<: g) a s f => g a s f e -> Maybe (f2 a s f e)
+prj = prj' (P :: Proxy (Elem f2 g))

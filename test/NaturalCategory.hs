@@ -199,11 +199,12 @@ st2 :: H.IniRules Axioms Sort Fun
 st2 = H.Leib l_fla2 "l" codId st1 
 
 -------------------------------------------------------------------------------------
-star' :: N.Rule Axioms Sort Fun ala
-star' = N.Axiom $ Proj2Comp "f" "g" 
+domId'' :: Expr ((N.Rule :+: N.Trans) Axioms Sort Fun)
+domId'' = N.axim (DomId "x")
+domE'' :: Expr ((N.Rule :+: N.Trans) Axioms Sort Fun)
+domE'' = N.sym $ N.axim (DomExcl "x")
+prIdExcl'' :: Expr ((N.Rule :+: N.Trans) Axioms Sort Fun)
+prIdExcl'' = N.sym $ N.trans domId'' domE''
 
-tw' = In $ N.Axiom $ Idd $ unright $ H.createSeq [dom'(hom "f") :== dom'(hom "g")] $ (hom "f") *. (hom "g") :== (hom "f") *. (hom "g")
-two' = In $ N.Strict 1 tw'
 
-axim :: ((N.Rule Axioms Sort Fun) :<: e) => Expr e -> Expr e -> Expr e
-axim ax = In $ inj $ N.Axiom ax
+

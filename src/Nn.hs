@@ -1,11 +1,13 @@
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+ {-# LANGUAGE GADTs #-}
 -- {-# LANGUAGE InstanceSigs #-}
--- {-# LANGUAGE FlexibleInstances #-}
--- {-# LANGUAGE FlexibleContexts #-}
+ {-# LANGUAGE FlexibleInstances #-}
+ {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE AllowAmbiguousTypes #-}
 -- {-# LANGUAGE FunctionalDependencies #-}
 -- {-# LANGUAGE KindSignatures #-}
@@ -22,20 +24,24 @@ import qualified Data.Set as Set
 import LaCarte
 import Term
 
-data family Rules r a s f ala
+--data family Rules r a s f ala
 
-data Rule a s f ala
-        = Axiom (a s f) -- not used
+data Rule a s f ala = Axiom (a s f) -- not used
         ----------------------------------------------------
-        | Refl [Formula s f] (VarNames s)   --                    |- x = x
-        | Sym ala              --            a :== b |- b :== a
-        | Select Int [Formula s f]          --        phi and psi |- phi
-        | Leib (Formula s f) Name ala ala  -- x = y and phi[x/z] |- phi[y/z]
-        | Strict Int ala          --    F(t_1) = F(t_1) |- t_1 = t_1
+         | Refl [Formula s f] (VarNames s)   --                    |- x = x
+         | Sym ala              --            a :== b |- b :== a
+         | Select Int [Formula s f]          --        phi and psi |- phi
+         | Leib (Formula s f) Name ala ala  -- x = y and phi[x/z] |- phi[y/z]
+         | Strict Int ala          --    F(t_1) = F(t_1) |- t_1 = t_1
         -- Due to definition give variables in sorted order
-        | SubstAx (a s f) [ala] [Term s f] --   axiom plus subst
+         | SubstAx (a s f) [ala] [Term s f] --   axiom plus subst
 
 data Trans a s f ala = Trans ala ala
+
+data Struct a s f where 
+    Ax :: a -> s -> f -> Struct a a a
+    Srt :: a -> s -> f -> Struct s s s
+    Fun :: a -> s -> f -> Struct f f f
 
 instance (Theory a s f) => Functor (Rule a s f) where
     fmap f (Axiom a) = Axiom a
@@ -49,14 +55,10 @@ instance (Theory a s f) => Functor (Rule a s f) where
 instance (Theory a s f) => Functor (Trans a s f) where
     fmap f (Trans x y) = Trans (f x) (f y)
 
-class (Functor f2) => Proof f2 where
-    type S f2
-    type F f2
-    proofA:: f2 (ErrSec (S f2) (F f2)) -> ErrSec (S f2) (F f2)
+class (Theory a s f, Functor (f2 a s f)) => Proof f2 a s f where
+    proofA:: f2 a s f (ErrSec s f) -> ErrSec s f
 
-instance Theory a s f => Proof (Rule a s f) where
-    type S(Rule a s f) = s
-    type F(Rule a s f) = f
+instance (Theory a s f) => Proof Rule a s f where
     proofA (Axiom s) = do
         a <- axiom s
         typeCheckSeq a
@@ -87,9 +89,7 @@ instance Theory a s f => Proof (Rule a s f) where
                         | otherwise = Left $ "Not a fundef in Strict"
                   check _ _ = Left $ "Not a fundef in Strict"
 
-instance Theory a s f => Proof (Trans a s f) where
-    type S (Trans a s f) = s
-    type F (Trans a s f) = f
+instance Theory a s f => Proof Trans a s f where
     proofA (Trans rl rr) = do
         (Seq vs1 x1 (a :== c1)) <- rl
         (Seq vs2 x2 (c2 :== b)) <- rr
@@ -100,14 +100,30 @@ instance Theory a s f => Proof (Trans a s f) where
                                   | otherwise = Left $ "Contexts in trans must be the same: " ++ show x1 ++ " and " ++ show x2
 
 
-instance (Proof f2, Proof g, S f2 ~ S g, F f2 ~ F g) => Proof (f2 :+: g) where
-    type S (f2 :+: g) = S f2
-    type F (f2 :+: g) = F f2
+instance (Proof f2 a s f, Proof g a s f) => Proof (f2 :+: g) a s f where
     proofA (Inl f) = proofA f
     proofA (Inr g) = proofA g
 
-proof :: (Proof f) => Expr f -> ErrSec (S f) (F f)
+proof :: (Proof f2 a s f) => Expr (f2 a s f) -> ErrSec s f
 proof expr = foldExpr proofA expr
 
---axim :: ((Rule a s f) :<: e) => Expr e -> Expr e -> Expr e
---axim ax = In $ inj $ N.Axiom ax
+axim :: (Rule :<: e) a s f => a s f -> Expr (e a s f)
+axim ax = In $ inj $ Axiom ax
+
+refl :: (Rule :<: e) a s f => [Formula s f] -> VarNames s -> Expr (e a s f)
+refl flas vs = In $ inj $ Refl flas vs
+
+sym :: (Rule :<: e) a s f => Expr (e a s f) -> Expr (e a s f)
+sym x = In $ inj $ Sym x
+
+select :: (Rule :<: e) a s f => Int -> [Formula s f] -> Expr (e a s f)
+select n flas = In $ inj $ Select n flas
+
+strict :: (Rule :<: e) a s f => Int -> Expr (e a s f) -> Expr (e a s f)
+strict n x = In $ inj $ Strict n x
+
+trans :: (Trans :<: e) a s f => Expr (e a s f) -> Expr (e a s f) -> Expr (e a s f)
+trans a b = In $ inj $ Trans a b
+
+
+        -- | Leib (Formula s f) Name ala ala  -- x = y and phi[x/z] |- phi[y/z]
