@@ -16,11 +16,15 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Term
+                     , NaturalHorn
                     -- , Algebraic
                     -- , Horn
-                     , Nn
-                     , NaturalHorn
-                     , LaCarte
+  other-modules:       NHorn.LaCarte
+                     , NHorn.NaturalHorn
+                     , NHorn.NaturalHornExts
+                     , NHorn.NaturalHornPretty
+                     , NHorn.Sequent
+                     
   build-depends:       base >= 4.7 && < 5
                      , wl-pprint == 1.1
                      , containers == 0.5.5.*

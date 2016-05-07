@@ -8,8 +8,6 @@ module Horn (
     Rule(..),
     Theory(..),
     Sequent,
-    --Sym(..),
-    --Trans(..),
     leftS,
     rightS,
     defFun,
@@ -20,7 +18,6 @@ module Horn (
 
 import Control.Monad(foldM)
 import Data.List(tail, init)
-import LaCarte
 import qualified Data.Map as Map
 
 import Term
@@ -74,6 +71,7 @@ typeCheckSeq seqt = do
 class (Show (a s f), Signature s f) => Theory a s f | a -> s f, s f -> a where 
     axiom :: a s f -> ErrSec s f
 
+data Expr a = In (a (Expr a))
 
 data Rule a s f ala
         = Axiom (a s f)
@@ -101,36 +99,6 @@ data Rule a s f ala
 
 data Empty r
 type IniRules a s f = Rule a s f Empty
-
---type STRules a s f = Rule a s f (Sym s f :+: Trans s f)
-
---data Sym s f r = Sym [Formula s f]
---data Trans s f r = Trans [Formula s f] 
-
---data Congr r = Congr r r
-
---type ExtRules a s f = Rule a s f (Sym :+: Trans :+: Congr)
-
---class UserRules ala where
---    def :: ala (t) -> ErrSec s f
-
---instance (UserRules f, UserRules g) => UserRules (f :+: g) where
---    def (Inl f) = def f
---    def (Inr g) = def g
-
---instance (Signature s f) => UserRules (Sym s f) where
---    def (Sym []) = Left "Refl must have one formula not ZERO"
---    def (Sym [(a :== b)]) = createSeq [(a :== b)] [(b :== a)]
---    def (Sym _) = Left "Refl must have one formula not MANY"
-
---instance (Signature s f) => UserRules (Trans s f) where
---    def (Trans []) = Left "Refl must have two formulas not ZERO"
---    def (Trans [x]) = Left "Refl must have two formulas not ONE"
---    def (Trans l@([(a :== b), (b1 :== c)])) = if b == b1
---        then createSeq l [a :== c]
---        else Left $ "Trans doesn't work"
---    def (Trans _) = Left "Refl must have two formulas not MANY"
-
 
 -----------------------------------------------------------------
 
