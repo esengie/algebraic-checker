@@ -25,7 +25,7 @@ import NHorn.Sequent
 import NHorn.LaCarte
 import Term
 
-data Rule a s f ala 
+data Rule a s f ala
          = Refl [Formula s f] (VarNames s)   --                    |- x = x
          | Sym ala              --            a :== b |- b :== a
          | Select Int [Formula s f]          --        phi and psi |- phi
@@ -52,7 +52,7 @@ instance (Proof f2 a s f, Proof g a s f) => Proof (f2 :+: g) a s f where
     proofA (Inr g) = proofA g
 
 proof :: (Proof f2 a s f) => Expr (f2 a s f) -> ErrSec s f
-proof expr = foldExpr proofA expr
+proof = foldExpr proofA
 
 instance (Theory a s f) => Proof Rule a s f where
     proofA (Sym rl) = do
@@ -63,9 +63,9 @@ instance (Theory a s f) => Proof Rule a s f where
         checkListLength n flas
         createSeq flas (flas !! (n-1))
 
-    proofA (Refl left vm) 
+    proofA (Refl left vm)
         | vm == emptyVNS = Left "Can't apply Refl to empty set of vars"
-        | otherwise = 
+        | otherwise =
           let (nel, sel) = Map.elemAt 0 vm
               v = Var nel sel in
                   createSeq left $ v :== v
@@ -85,7 +85,7 @@ instance (Theory a s f) => Proof Rule a s f where
         let s1 = typeOf t1
         let s2 = typeOf t2
         substL <- subst tL v s1 t1
-        substR <- subst tR v s1 t1    
+        substR <- subst tR v s1 t1
         check2 <- createSeq cont1 (substL :== substR)
 
         retL <- subst tL v s2 t2
@@ -101,7 +101,7 @@ instance (Theory a s f) => Proof Rule a s f where
 
         axiP@(Seq vsSeq leftAx rightAx) <- (Right ax')
         -- Get all proofs
-        proofLst <- mapM id proofs
+        proofLst <- sequence proofs
 
         -- typeCheck terms
         sortTerms <- mapM typeCheckTerm terms
@@ -118,13 +118,13 @@ instance (Theory a s f) => Proof Rule a s f where
 
         -- check contexts equality
         ctx <- contCheck $ map leftS proofLst
-        
+
         -- subst into vars to the left of |- in an axiom
         -- this if is a semihack to use createSeq
-        if leftAx == [] then createSeq ctx rightAx
-            else do 
-                (Seq llVars _ _) <- createSeq leftAx $ leftAx!!0
-                -------------- Clutter 
+        if null leftAx then createSeq ctx rightAx
+            else do
+                (Seq llVars _ _) <- createSeq leftAx $ head leftAx
+                -------------- Clutter
                 let mangled_r = Set.fromList $ map fst $ Map.toList llVars
                 let m_llVars = mangleVars mangled_r llVars
                 let vsSeq'' = mangleVars mangled_r vsSeq
@@ -134,13 +134,13 @@ instance (Theory a s f) => Proof Rule a s f where
                 createSeq ctx res
 
         where
-            leftCheck lsAx lsSeq  = if lsAx == lsSeq then return () else Left $ "Precondition doesn't match subst into axiom: \n"
+            leftCheck lsAx lsSeq = if lsAx == lsSeq then return () else Left $ "Precondition doesn't match subst into axiom: \n"
                 ++ show lsAx ++ "\n" ++ show lsSeq
             contCheck [] = return []
-            contCheck ctxs = foldM (\a b -> if a == b then return b else Left $ "Contexts differ") (ctxs !! 0) ctxs
+            contCheck ctxs = foldM (\a b -> if a == b then return b else Left $ "Contexts differ") (head ctxs) ctxs
 
 
-checkListLength n lst 
+checkListLength n lst
     | n < 1 = Left $ "Index is less than 1"
     | length lst >= n = Right ()
     | otherwise = Left $ "Index is bigger than a list"
@@ -154,7 +154,7 @@ substHelper vsSeq fla (nam, sortTerm, term) =  do
 ------------------------------------------------------------------------------
 
 
--- Constructors 
+-- Constructors
 refl :: (Rule :<: e) a s f => [Formula s f] -> VarNames s -> Expr (e a s f)
 refl flas vs = In $ inj $ Refl flas vs
 

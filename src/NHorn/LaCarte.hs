@@ -1,6 +1,4 @@
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
@@ -10,13 +8,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
-
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PolymorphicComponents #-}
 
 module NHorn.LaCarte (
     Expr(..),
     (:+:)(..),
-    (:<:)(..),
+    (:<:),
     foldExpr,
     inj,
     prj,
@@ -25,14 +23,7 @@ module NHorn.LaCarte (
 
 newtype Expr f = In (f (Expr f))
 
---instance Show (f (Expr f)) => Show (Expr f) where
---    showsPrec _ (In x) = showsPrec 11 x
-
 data (f2 :+: g) a s f e = Inl (f2 a s f e) | Inr (g a s f e)
-
---instance (Show (f2 a s f e), Show (g a s f e)) => Show ((f2 :+: g) a s f e) where
---    showsPrec _ (Inl x) = showsPrec 11 x    
---    showsPrec _ (Inr x) = showsPrec 11 x    
 
 instance (Functor (f2 a s f), Functor (g a s f)) => Functor ((f2 :+: g) a s f) where
    fmap h (Inl f) = Inl (fmap h f)
@@ -76,7 +67,7 @@ instance Subsume (Found p) f2 r a s f => Subsume (Found (Ri p)) f2 (l :+: r ) a 
     prj' _ (Inr x ) = prj' (P :: Proxy (Found p)) x
     prj' _ (Inl _) = Nothing
 
-type (f2 :<: g) a s f = Subsume (Elem (f2) (g)) f2 g a s f
+type (f2 :<: g) a s f = Subsume (Elem f2 g) f2 g a s f
 
 inj :: forall f2 g a s f e. (f2 :<: g) a s f => f2 a s f e -> g a s f e
 inj = inj' (P :: Proxy (Elem f2 g))
